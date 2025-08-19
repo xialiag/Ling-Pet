@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { PetResponseItem, PetResponseItemWithAudio } from '../types/ai'
 import { usePetStateStore } from './petState'
 import { useVitsConfigStore } from './vitsConfig'
@@ -11,7 +11,9 @@ import { debug } from '@tauri-apps/plugin-log'
 // 策略常量（可后续抽到配置）
 const POST_DELAY_MS = 2000 // 非流式期文字推进延迟
 // 统一使用延时推进，避免流式期立即推进导致跳过等待
-const INACTIVITY_TIMEOUT_MS = 15000 // 超过该时间无推进则进入空闲策略
+// 空闲超时改为从配置获取（单位：秒），此处仅保留一个最小/最大边界与换算
+const INACTIVITY_MIN_SEC = 15
+const INACTIVITY_MAX_SEC = 300
 
 export const useConversationStore = defineStore('conversation', () => {
   const responseItems = ref<PetResponseItemWithAudio[]>([])
@@ -27,6 +29,15 @@ export const useConversationStore = defineStore('conversation', () => {
   const inactivityTimerId = ref<number | null>(null)
   const lastActivityAt = ref<number>(Date.now())
   const abortAfterStream = ref(false)
+
+  // 根据配置计算空闲超时（毫秒），并做边界保护
+  function getInactivityTimeoutMs(): number {
+    const sec = Math.max(
+      INACTIVITY_MIN_SEC,
+      Math.min(INACTIVITY_MAX_SEC, aiConfig.inactivityTimeoutSec)
+    )
+    return sec * 1000
+  }
 
   function isAutoPlayEnabled(): boolean {
     return aiConfig.autoPlay
@@ -200,6 +211,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   function scheduleInactivityWatch() {
     cancelInactivityWatch()
+    const timeoutMs = getInactivityTimeoutMs()
     inactivityTimerId.value = window.setTimeout(() => {
       inactivityTimerId.value = null
       const now = Date.now()
@@ -209,7 +221,7 @@ export const useConversationStore = defineStore('conversation', () => {
         scheduleInactivityWatch()
         return
       }
-      if (elapsed < INACTIVITY_TIMEOUT_MS) {
+      if (elapsed < timeoutMs) {
         // 有新活动，重新监听
         scheduleInactivityWatch()
         return
@@ -226,13 +238,21 @@ export const useConversationStore = defineStore('conversation', () => {
       } else {
         stopToIdle()
       }
-    }, INACTIVITY_TIMEOUT_MS)
+    }, timeoutMs)
   }
 
   function touchActivity() {
     lastActivityAt.value = Date.now()
     scheduleInactivityWatch()
   }
+
+  // 当设置的空闲超时时长变化时，重新安排监听
+  watch(
+    () => aiConfig.inactivityTimeoutSec,
+    () => {
+      scheduleInactivityWatch()
+    }
+  )
 
   return {
     // state

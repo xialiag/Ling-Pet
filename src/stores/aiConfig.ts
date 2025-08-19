@@ -13,6 +13,8 @@ export const useAIConfigStore = defineStore(
     const systemPrompt = ref(DEFAULT_CHARACTER_PROMPT) // 默认系统提示为空
     const historyMaxLength = ref(100) // 默认历史记录最大长度
     const autoPlay = ref(false) // 默认自动播放开启
+    // 空闲超时（秒）：用于会话在无活动时自动回到空闲状态，范围建议 15~300 秒
+    const inactivityTimeoutSec = ref(15)
 
     return {
       apiKey,
@@ -23,6 +25,7 @@ export const useAIConfigStore = defineStore(
       systemPrompt,
       historyMaxLength,
       autoPlay,
+      inactivityTimeoutSec,
     }
   },
   {

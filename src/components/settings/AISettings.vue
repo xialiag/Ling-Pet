@@ -62,6 +62,23 @@
             ></v-switch>
           </div>
 
+          <!-- 空闲超时设置（秒） -->
+          <div class="mt-6">
+            <div class="d-flex justify-space-between align-center mb-1">
+              <v-label>空闲超时（秒）</v-label>
+              <span class="text-primary font-weight-medium">{{ ac.inactivityTimeoutSec }}</span>
+            </div>
+            <p class="text-caption text-medium-emphasis">在无活动（未播放/未推进）达到该时长后，自动回到空闲状态</p>
+            <v-slider
+              v-model="ac.inactivityTimeoutSec"
+              :min="15"
+              :max="300"
+              :step="5"
+              thumb-label
+              color="purple"
+            ></v-slider>
+          </div>
+
         </div>
 
         <v-divider class="my-8"></v-divider>
