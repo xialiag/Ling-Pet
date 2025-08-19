@@ -1,11 +1,7 @@
 <template>
   <div class="avatar-wrapper">
     <!-- Thinking bubble in top-left when streaming -->
-    <div
-      v-if="conversation.isStreaming"
-      class="thinking-bubble"
-      aria-label="thinking"
-    >
+    <div v-if="conversation.isStreaming" class="thinking-bubble" aria-label="thinking">
       <span class="dot"></span>
       <span class="dot"></span>
       <span class="dot"></span>
@@ -13,18 +9,17 @@
 
     <div class="avatar-border">
       <div class="avatar-anim" :class="{ shaking: isShaking, breathing: !isShaking }">
-        <img v-show="isReady" :src="emotionSrc" :alt="emotionName" class="pet-avatar"
-          draggable="false" @load="onImgLoad" @error="onImgError"
-          @mousedown="onDragStart" @click.stop="onClick" />
+        <img v-show="isReady" :src="emotionSrc" :alt="emotionName" class="pet-avatar" draggable="false"
+          @load="onImgLoad" @error="onImgError" @mousedown="onDragStart" @click.stop="onClick" />
       </div>
     </div>
     <div v-if="!isReady" class="avatar-loading">首次加载，请稍等……</div>
   </div>
-  
+
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { usePetStateStore } from '../../stores/petState';
 import { codeToEmotion } from '../../constants/emotions';
@@ -32,6 +27,8 @@ import { getEmotionImageSrcByName } from '../../services/emotionPack'
 import { useConversationStore } from '../../stores/conversation';
 import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter';
 import { useAppearanceConfigStore } from '../../stores/appearanceConfig'
+import { EMOTION_CODE_MAP } from '../../constants/emotions';
+import { useMemoryStore } from '../../stores/memory';
 
 const state = usePetStateStore()
 const appWindow = getCurrentWebviewWindow();
@@ -96,14 +93,14 @@ function onDragStart(e: MouseEvent) {
   window.addEventListener('mouseup', onUp, { once: true });
 }
 
-  function onClick() {
+function onClick() {
   // 取消可能存在的自动播放定时器
   conversation.cancelAutoPlay();
-  
+
   state.updateLastClickTimestamp();
   conversation.playNext();
   registerAvatarClick();
-  }
+}
 
 function triggerShakeEffect() {
   isShaking.value = true;
@@ -116,6 +113,38 @@ watch(() => state.currentEmotion, () => {
   triggerShakeEffect();
 });
 
+onMounted(() => {
+  setTimeout(() => {
+    if (useMemoryStore().firstLaunch) {
+      [
+        {
+          message: '你好呀，初次见面~',
+          emotion: EMOTION_CODE_MAP['调皮'],
+          japanese: 'こんにちは〜',
+        },
+        {
+          message: '我叫钦灵，从今天开始我就住在你的电脑里了……',
+          emotion: EMOTION_CODE_MAP['自信'],
+          japanese: '私はりんと申します。今日からあなたのパートナーになります。',
+        },
+        {
+          message: '你可以叫我灵灵',
+          emotion: EMOTION_CODE_MAP['微笑'],
+          japanese: 'りんりんと呼んでください。',
+        },
+        {
+          message: '你呢？如果能告诉我你的名字的话，我会很开心的~',
+          emotion: EMOTION_CODE_MAP['调皮'],
+          japanese: '差し支えなければ、あなたのお名前を教えていただけますか？',
+        }
+      ].forEach(item => {
+        conversation.addItem(item);
+      });
+    }
+    useMemoryStore().firstLaunch = false;
+  }, 2000);
+});
+
 </script>
 
 <style scoped>
@@ -125,7 +154,8 @@ watch(() => state.currentEmotion, () => {
   align-items: center;
   justify-content: center;
   position: relative;
-  --glow-color: 80 180 255; /* RGB values, e.g., cyan-blue */
+  --glow-color: 80 180 255;
+  /* RGB values, e.g., cyan-blue */
 }
 
 .avatar-border {
@@ -179,9 +209,12 @@ watch(() => state.currentEmotion, () => {
 }
 
 @keyframes breathe {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scaleX(1) scaleY(1) translateY(0);
   }
+
   50% {
     transform: scaleX(1.02) scaleY(1.02) translateY(-2px);
   }
@@ -201,9 +234,9 @@ watch(() => state.currentEmotion, () => {
   object-fit: contain;
   width: 100%;
   cursor: pointer;
-  image-rendering: auto; /* 或 smooth，auto 通常效果更好 */
-  filter: drop-shadow(0 0 6px rgb(var(--glow-color) / 0.6))
-          drop-shadow(0 0 12px rgb(var(--glow-color) / 0.35));
+  image-rendering: auto;
+  /* 或 smooth，auto 通常效果更好 */
+  filter: drop-shadow(0 0 6px rgb(var(--glow-color) / 0.6)) drop-shadow(0 0 12px rgb(var(--glow-color) / 0.35));
   transition: filter 0.2s ease;
 }
 
@@ -212,7 +245,8 @@ watch(() => state.currentEmotion, () => {
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-  background: rgba(0, 0, 0, 0.4); /* 灰色半透明背景 */
+  background: rgba(0, 0, 0, 0.4);
+  /* 灰色半透明背景 */
   color: #fff;
   display: flex;
   align-items: center;
@@ -228,8 +262,7 @@ watch(() => state.currentEmotion, () => {
 }
 
 .avatar-border:hover .pet-avatar {
-  filter: drop-shadow(0 0 8px rgb(var(--glow-color) / 0.75))
-          drop-shadow(0 0 18px rgb(var(--glow-color) / 0.5));
+  filter: drop-shadow(0 0 8px rgb(var(--glow-color) / 0.75)) drop-shadow(0 0 18px rgb(var(--glow-color) / 0.5));
 }
 
 /* Thinking bubble - scales with parent */
@@ -247,7 +280,8 @@ watch(() => state.currentEmotion, () => {
   justify-content: center;
   gap: 10%;
   z-index: 2;
-  pointer-events: none; /* do not block clicks */
+  pointer-events: none;
+  /* do not block clicks */
 }
 
 .thinking-bubble .dot {
@@ -268,10 +302,24 @@ watch(() => state.currentEmotion, () => {
 }
 
 @keyframes bubblePulse {
-  0% { opacity: 0.25; transform: translateY(0) scale(0.9); }
-  30% { opacity: 1; transform: translateY(-6%) scale(1.05); }
-  60% { opacity: 0.6; transform: translateY(0) scale(0.95); }
-  100% { opacity: 0.25; transform: translateY(0) scale(0.9); }
-}
+  0% {
+    opacity: 0.25;
+    transform: translateY(0) scale(0.9);
+  }
 
+  30% {
+    opacity: 1;
+    transform: translateY(-6%) scale(1.05);
+  }
+
+  60% {
+    opacity: 0.6;
+    transform: translateY(0) scale(0.95);
+  }
+
+  100% {
+    opacity: 0.25;
+    transform: translateY(0) scale(0.9);
+  }
+}
 </style>
