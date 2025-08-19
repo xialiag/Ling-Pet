@@ -12,13 +12,13 @@ const conversation = useConversationStore();
 const USERPROMPT =
   `System: 你已经很久没有收到消息回复啦，于是你忍不住偷偷看了一下他的电脑屏幕，发现他刚刚打开了一个新窗口
 <screen-content>
-{screenContent}
+{screenContent};
 </screen-content>
 你要对他说些什么呢？
 `
 
 export async function handleNewWindows(newWindows: ScreenshotableWindow[]) {
-  if (!Array.isArray(newWindows) || newWindows.length === 0) return;
+  if (!Array.isArray(newWindows) || newWindows.length !== 1) return;
 
   // Basic guards
   if (!aiConfig.apiKey || !aiConfig.baseURL || !aiConfig.model) {
