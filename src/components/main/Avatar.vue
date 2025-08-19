@@ -1,5 +1,16 @@
 <template>
   <div class="avatar-wrapper">
+    <!-- Thinking bubble in top-left when streaming -->
+    <div
+      v-if="conversation.isStreaming"
+      class="thinking-bubble"
+      aria-label="thinking"
+    >
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+
     <div class="avatar-border">
       <div class="avatar-anim" :class="{ shaking: isShaking, breathing: !isShaking }">
         <img v-show="isReady" :src="emotionSrc" :alt="emotionName" class="pet-avatar"
@@ -113,6 +124,7 @@ watch(() => state.currentEmotion, () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   --glow-color: 80 180 255; /* RGB values, e.g., cyan-blue */
 }
 
@@ -218,6 +230,48 @@ watch(() => state.currentEmotion, () => {
 .avatar-border:hover .pet-avatar {
   filter: drop-shadow(0 0 8px rgb(var(--glow-color) / 0.75))
           drop-shadow(0 0 18px rgb(var(--glow-color) / 0.5));
+}
+
+/* Thinking bubble - scales with parent */
+.thinking-bubble {
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  width: 30%;
+  height: 18%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10%;
+  z-index: 2;
+  pointer-events: none; /* do not block clicks */
+}
+
+.thinking-bubble .dot {
+  width: 12%;
+  height: 26%;
+  border-radius: 50%;
+  background: black;
+  opacity: 0.35;
+  animation: bubblePulse 1.2s infinite ease-in-out;
+}
+
+.thinking-bubble .dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-bubble .dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes bubblePulse {
+  0% { opacity: 0.25; transform: translateY(0) scale(0.9); }
+  30% { opacity: 1; transform: translateY(-6%) scale(1.05); }
+  60% { opacity: 0.6; transform: translateY(0) scale(0.95); }
+  100% { opacity: 0.25; transform: translateY(0) scale(0.9); }
 }
 
 </style>
