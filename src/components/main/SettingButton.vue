@@ -34,7 +34,6 @@ async function openSettings() {
   };
   new WebviewWindow('settings', {
     ...settingWindowConfig,
-    visible: true
   });
 }
 </script>

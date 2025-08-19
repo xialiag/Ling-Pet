@@ -36,7 +36,6 @@ async function openChatHistory() {
   };
   new WebviewWindow('chat-history', {
     ...chatHistoryWindowConfig,
-    visible: true
   });
 }
 </script>
