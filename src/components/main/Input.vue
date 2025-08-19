@@ -4,8 +4,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, watch } from 'vue';
-import { describeScreens } from '../../services/screenAnalysis/screenDescription';
+import { ref, computed, watch, onUnmounted } from 'vue';
 import { useConversationStore } from '../../stores/conversation';
 import { storeToRefs } from 'pinia';
 import { chatWithPetStream } from '../../services/chatAndVoice/chatWithPet';
@@ -19,6 +18,33 @@ const inputMessage = ref('');
 const thinkingMessages = ['正在思考中', '正在思考中.', '正在思考中..', '正在思考中...'];
 const thinkingIndex = ref(0);
 const toolingMessages = ['使用工具中', '使用工具中.', '使用工具中..', '使用工具中...'];
+
+// 全局思考计时器（当 conversation.isStreaming 为 true 时播放）
+let thinkingTimer: number | null = null;
+
+function startThinkingAnimation() {
+  if (thinkingTimer !== null) return;
+  thinkingTimer = window.setInterval(() => {
+    thinkingIndex.value = (thinkingIndex.value + 1) % thinkingMessages.length;
+  }, 500);
+}
+
+function stopThinkingAnimation() {
+  if (thinkingTimer === null) return;
+  clearInterval(thinkingTimer);
+  thinkingTimer = null;
+  thinkingIndex.value = 0;
+}
+
+// 监听 isStreaming: 只要为 true 就播放动画，false 则停止并重置
+watch(isStreaming, (val) => {
+  if (val) startThinkingAnimation();
+  else stopThinkingAnimation();
+});
+
+onUnmounted(() => {
+  stopThinkingAnimation();
+});
 
 // 输入框状态枚举
 enum InputState {
@@ -112,35 +138,17 @@ async function sendMessage() {
       return;
     }
 
-    // 设置发送状态
-    conversation.start();
     // 立即清空输入框，这样 placeholder 就能显示
     inputMessage.value = '';
-    // 启动思考动画
-    const thinkingTimer = setInterval(() => {
-      thinkingIndex.value = (thinkingIndex.value + 1) % thinkingMessages.length;
-    }, 500);
-
-    let screenAnalysisBlock = '';
-    try {
-      const screenAnalysisResponse = userMessage.startsWith('.') ? await describeScreens() : '';
-      screenAnalysisBlock = `<screen-analysis>${screenAnalysisResponse}</screen-analysis>`;
-    } catch (error) {
-      console.error('Error occurred while processing message:', error);
-    }
-    const petResponse = await chatWithPetStream(
-      userMessage + (userMessage.startsWith('.') ? screenAnalysisBlock : '')
-    );
+    // 启动思考动画由 isStreaming watcher 统一管理（conversation.start() 会触发 isStreaming）
+    const petResponse = await chatWithPetStream(userMessage);
 
     if (!petResponse.success) {
       conversation.currentMessage = petResponse.error || '发生错误，请稍后再试。'
     }
 
-    clearInterval(thinkingTimer);
-    thinkingIndex.value = 0;
-
-    // 无论成功还是失败，都要重置发送状态
-    conversation.finish();
+    // 确保在完成后停止动画（watcher 也会处理，但这里作一次保险）
+    stopThinkingAnimation();
   }
 }
 
