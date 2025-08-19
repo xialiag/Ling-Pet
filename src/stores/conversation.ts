@@ -10,7 +10,7 @@ import { debug } from '@tauri-apps/plugin-log'
 
 // 策略常量（可后续抽到配置）
 const POST_DELAY_MS = 2000 // 非流式期文字推进延迟
-const STREAM_IMMEDIATE = true // 流式期立即推进
+// 统一使用延时推进，避免流式期立即推进导致跳过等待
 const INACTIVITY_TIMEOUT_MS = 15000 // 超过该时间无推进则进入空闲策略
 
 export const useConversationStore = defineStore('conversation', () => {
@@ -48,7 +48,7 @@ export const useConversationStore = defineStore('conversation', () => {
     }, delay)
   }
 
-  // 统一的推进入口：根据 currentAudio/isStreaming 决定立即或延迟推进
+  // 统一的推进入口：根据 currentAudio/展示位状态决定立即或延迟推进
   function maybeConsume() {
     // 1) 正在播音频：等待 onended 再推进
     if (currentAudio.value) return
@@ -59,13 +59,9 @@ export const useConversationStore = defineStore('conversation', () => {
       return
     }
 
-    // 3) 展示位非空：根据流式/非流式策略推进
+    // 3) 展示位非空：统一延时推进，保证至少等待 POST_DELAY_MS
     if (responseItems.value.length > 0 && isAutoPlayEnabled()) {
-      if (isStreaming.value && STREAM_IMMEDIATE) {
-        playNext()
-      } else {
-        scheduleNext(POST_DELAY_MS)
-      }
+      scheduleNext(POST_DELAY_MS)
     }
   }
 
