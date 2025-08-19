@@ -143,6 +143,10 @@ onMounted(() => {
     }
     useMemoryStore().firstLaunch = false;
   }, 2000);
+  setTimeout(() => {
+    // 触发一次点击事件，确保 avatarMultiClickEmitter 已经注册
+    conversation.cancelInactivityWatch()
+  }, 6000);
 });
 
 </script>

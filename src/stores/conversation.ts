@@ -270,5 +270,6 @@ export const useConversationStore = defineStore('conversation', () => {
     cancelAutoPlay,
     clearAll,
     stopToIdle,
+    cancelInactivityWatch
   }
 })
