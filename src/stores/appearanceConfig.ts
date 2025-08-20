@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed } from 'vue'
-import type { ColorTheme, EmotionName } from '../types/emotion'
+import type { ColorTheme, EmotionDescription } from '../types/emotion'
 
 export const useAppearanceConfigStore = defineStore(
   'appearanceConfig',
@@ -14,9 +14,10 @@ export const useAppearanceConfigStore = defineStore(
 
     // 表情包运行时数据（响应式）
     const emotionPackRoot = ref<string>('')
-    const emotionNameToCode = reactive<Record<string, number>>({})
-    const emotionCodeToName = ref<string[]>([])
-    const defaultEmotionName = ref<EmotionName>('默认')
+    // 描述-编号映射不再对外使用，仅保留编号->描述
+    const emotionCodeToDescription = ref<string[]>([])
+    const defaultEmotionDescription = ref<EmotionDescription>('默认')
+    const defaultEmotionCode = ref<number>(0)
     const emotionColors = reactive<Record<number, ColorTheme>>({})
     // 每当包内容变更/初始化完成时自增，驱动 UI 刷新与缓存击穿
     const emotionPackVersion = ref(0)
@@ -30,9 +31,9 @@ export const useAppearanceConfigStore = defineStore(
       activeEmotionPackName,
       // emotion pack runtime state
       emotionPackRoot,
-      emotionNameToCode,
-      emotionCodeToName,
-      defaultEmotionName,
+      emotionCodeToDescription,
+      defaultEmotionDescription,
+      defaultEmotionCode,
       emotionColors,
       emotionPackVersion,
       hasEmotionPack,

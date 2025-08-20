@@ -1,5 +1,5 @@
-// 动态表情系统：名称使用字符串，编号使用数字
-export type EmotionName = string;
+// 动态表情系统：描述使用字符串，编号使用数字
+export type EmotionDescription = string;
 
 export interface EmotionState {
   currentEmotion: number; // 使用编号
@@ -13,4 +13,3 @@ export interface ColorTheme {
   text: string
   shadow: string
 }
-

@@ -203,7 +203,7 @@ import { useChatHistoryStore } from '../stores/chatHistory';
 import { useVitsConfigStore } from '../stores/vitsConfig';
 import { getEmotionColorTheme } from '../constants/emotionColors';
 import { codeToEmotion } from '../constants/emotions';
-import { getEmotionImageSrcByName } from '../services/emotionPack';
+import { getEmotionImageSrcByCode } from '../services/emotionPack';
 import { ref } from 'vue';
 import { voiceVits } from '../services/chatAndVoice/vitsService';
 import { extractItemsFromContent } from '../utils/aiResponse'
@@ -226,7 +226,7 @@ function parseAIMessage(content: string): ParsedAIMessage[] {
 
 // 获取情绪样式
 function getEmotionStyle(emotionCode: number) {
-  const theme = getEmotionColorTheme(codeToEmotion(emotionCode));
+  const theme = getEmotionColorTheme(emotionCode);
   return {
     backgroundColor: theme.background,
     borderColor: theme.border,
@@ -339,7 +339,7 @@ async function playVoice(japaneseText: string, uniqueId: string) {
 }
 
 function getEmotionImage(code: number) {
-  return getEmotionImageSrcByName(codeToEmotion(code))
+  return getEmotionImageSrcByCode(code)
 }
 </script>
 

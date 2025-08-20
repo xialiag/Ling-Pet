@@ -264,7 +264,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { getEmotionColorTheme } from '../constants/emotionColors';
-import { codeToEmotion } from '../constants/emotions';
 import { useConversationStore } from '../stores/conversation';
 import { storeToRefs } from 'pinia';
 import { usePetStateStore } from '../stores/petState';
@@ -282,8 +281,8 @@ const textAlign = ref<'center' | 'left'>('center');
 // 添加打字动画控制
 let currentTypingId = 0;
 
-// 计算颜色主题
-const colorTheme = computed(() => getEmotionColorTheme(codeToEmotion(petState.currentEmotion)))
+// 计算颜色主题（直接使用情绪编号）
+const colorTheme = computed(() => getEmotionColorTheme(petState.currentEmotion))
 
 // 计算气泡样式
 const bubbleStyles = computed(() => {

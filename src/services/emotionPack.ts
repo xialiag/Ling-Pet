@@ -3,14 +3,14 @@ import { readDir, readTextFile, exists, mkdir, writeFile, remove } from '@tauri-
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { extractZipFile } from '../utils/archive'
 import { useAppearanceConfigStore } from '../stores/appearanceConfig'
-import type { ColorTheme, EmotionName } from '../types/emotion'
+import type { ColorTheme, EmotionDescription } from '../types/emotion'
 
-// 兼容旧导入：从 types 中 re-export
-export type { EmotionName, ColorTheme }
+// 兼容导入：从 types 中 re-export
+export type { EmotionDescription, ColorTheme }
 
 interface PackConfig {
   map: Record<string, number>
-  default: string
+  default: number
 }
 
 // 不再使用模块级非响应状态，改为使用 Pinia store 中的响应式字段
@@ -134,12 +134,18 @@ export async function initEmotionPack(preferredPack?: string): Promise<void> {
   const cfg = JSON.parse(cfgRaw) as PackConfig
   const colorsJson = JSON.parse(colorsRaw) as Record<string, ColorTheme>
 
-  const nameToCode: Record<string, number> = { ...cfg.map }
-  const codeToName: string[] = []
-  for (const [name, code] of Object.entries(nameToCode)) {
-    codeToName[code] = name
+  const descriptionToCode: Record<string, number> = { ...cfg.map }
+  const codeToDescription: string[] = []
+  for (const [desc, code] of Object.entries(descriptionToCode)) {
+    codeToDescription[code] = desc
   }
-  const defaultName = cfg.default in nameToCode ? cfg.default : codeToName[0] ?? '默认'
+  // 读取默认编号（配置以数字表示），并回退到第一个有效项
+  let defaultCode = cfg.default
+  if (!Number.isInteger(defaultCode) || typeof codeToDescription[defaultCode] !== 'string') {
+    const firstValid = codeToDescription.findIndex(v => typeof v === 'string' && v.length > 0)
+    defaultCode = firstValid >= 0 ? firstValid : 0
+  }
+  const defaultDescription = codeToDescription[defaultCode] ?? '默认'
 
   const colors: Record<number, ColorTheme> = {}
   for (const [k, v] of Object.entries(colorsJson)) {
@@ -149,11 +155,10 @@ export async function initEmotionPack(preferredPack?: string): Promise<void> {
 
   // 写入响应式 store
   ac.emotionPackRoot = packRoot
-  // 清空再填充，保持引用稳定
-  Object.keys(ac.emotionNameToCode).forEach(k => delete (ac.emotionNameToCode as any)[k])
-  for (const [n, c] of Object.entries(nameToCode)) (ac.emotionNameToCode as any)[n] = c
-  ac.emotionCodeToName = codeToName
-  ac.defaultEmotionName = defaultName
+  // 编号->描述
+  ac.emotionCodeToDescription = codeToDescription
+  ac.defaultEmotionDescription = defaultDescription
+  ac.defaultEmotionCode = defaultCode
   Object.keys(ac.emotionColors).forEach(k => delete (ac.emotionColors as any)[k])
   for (const [k, v] of Object.entries(colors)) (ac.emotionColors as any)[Number(k)] = v
   // bump 版本，通知 UI 刷新
@@ -165,37 +170,26 @@ export async function initEmotionPack(preferredPack?: string): Promise<void> {
   } catch { }
 }
 
-export function listEmotionNames(): EmotionName[] {
+export function listEmotionDescriptions(): EmotionDescription[] {
   const ac = useAppearanceConfigStore()
-  return ac.emotionCodeToName.slice()
+  return ac.emotionCodeToDescription.slice()
 }
 
-export function emotionNameToCode(name: EmotionName): number {
+export function codeToEmotion(code: number): EmotionDescription {
   const ac = useAppearanceConfigStore()
-  const code = ac.emotionNameToCode[name]
-  return Number.isInteger(code) ? code as number : ac.emotionNameToCode[ac.defaultEmotionName]
-}
-
-export function codeToEmotion(code: number): EmotionName {
-  const ac = useAppearanceConfigStore()
-  return Number.isInteger(code) && code >= 0 && code < ac.emotionCodeToName.length
-    ? ac.emotionCodeToName[code]
-    : ac.defaultEmotionName
-}
-
-export function getDefaultEmotionName(): EmotionName {
-  const ac = useAppearanceConfigStore()
-  return ac.defaultEmotionName
+  return Number.isInteger(code) && code >= 0 && code < ac.emotionCodeToDescription.length
+    ? ac.emotionCodeToDescription[code]
+    : ac.defaultEmotionDescription
 }
 
 export function getDefaultEmotionCode(): number {
   const ac = useAppearanceConfigStore()
-  return ac.emotionNameToCode[ac.defaultEmotionName]
+  return ac.defaultEmotionCode
 }
 
 export function getEmotionCodePrompt(): string {
   const ac = useAppearanceConfigStore()
-  return ac.emotionCodeToName.map((n, i) => `${n}：${i}`).join('\n')
+  return ac.emotionCodeToDescription.map((n, i) => `${n}：${i}`).join('\n')
 }
 
 const FALLBACK_THEME: ColorTheme = {
@@ -210,10 +204,6 @@ export function getEmotionColorThemeByCode(code: number): ColorTheme {
   return ac.emotionColors[code] ?? FALLBACK_THEME
 }
 
-export function getEmotionColorThemeByName(name: EmotionName): ColorTheme {
-  return getEmotionColorThemeByCode(emotionNameToCode(name))
-}
-
 export function getEmotionImageSrcByCode(code: number): string {
   const ac = useAppearanceConfigStore()
   const p = joinPath(ac.emotionPackRoot, `${code}.png`)
@@ -226,8 +216,4 @@ export function getEmotionImageSrcByCode(code: number): string {
     url.searchParams.set('pack', ac.activeEmotionPackName)
   }
   return url.toString()
-}
-
-export function getEmotionImageSrcByName(name: EmotionName): string {
-  return getEmotionImageSrcByCode(emotionNameToCode(name))
 }

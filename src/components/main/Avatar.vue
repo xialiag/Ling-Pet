@@ -9,7 +9,7 @@
 
     <div class="avatar-border">
       <div class="avatar-anim" :class="{ shaking: isShaking, breathing: !isShaking }">
-        <img v-show="isReady" :src="emotionSrc" :alt="emotionName" class="pet-avatar" draggable="false"
+        <img v-show="isReady" :src="emotionSrc" :alt="codeToEmotion(state.currentEmotion)" class="pet-avatar" draggable="false"
           @load="onImgLoad" @error="onImgError" @mousedown="onDragStart" @click.stop="onClick" />
       </div>
     </div>
@@ -23,11 +23,10 @@ import { ref, watch, computed, onMounted } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { usePetStateStore } from '../../stores/petState';
 import { codeToEmotion } from '../../constants/emotions';
-import { getEmotionImageSrcByName } from '../../services/emotionPack'
+import { getEmotionImageSrcByCode } from '../../services/emotionPack'
 import { useConversationStore } from '../../stores/conversation';
 import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter';
 import { useAppearanceConfigStore } from '../../stores/appearanceConfig'
-import { EMOTION_CODE_MAP } from '../../constants/emotions';
 import { useMemoryStore } from '../../stores/memory';
 
 const state = usePetStateStore()
@@ -36,7 +35,6 @@ const conversation = useConversationStore();
 
 const isShaking = ref(false);
 const isReady = ref(false);
-const emotionName = computed(() => codeToEmotion(state.currentEmotion));
 // 依赖 store 中的版本号和当前包名（服务内部会附加 v/pack 查询参数）
 const ac = useAppearanceConfigStore()
 const emotionSrc = computed(() => {
@@ -44,7 +42,7 @@ const emotionSrc = computed(() => {
   try {
     void ac.activeEmotionPackName
     void ac.emotionPackVersion
-    return getEmotionImageSrcByName(emotionName.value)
+    return getEmotionImageSrcByCode(state.currentEmotion)
   } catch (e) {
     // 在资源尚未就绪时返回空字符串，保持占位视图
     return ''
@@ -119,22 +117,22 @@ onMounted(() => {
       [
         {
           message: '你好呀，初次见面~',
-          emotion: EMOTION_CODE_MAP['调皮'],
+          emotion: 10,
           japanese: 'こんにちは〜',
         },
         {
           message: '我叫钦灵，从今天开始我就住在你的电脑里了……',
-          emotion: EMOTION_CODE_MAP['自信'],
+          emotion: 17,
           japanese: '私はりんと申します。今日からあなたのパートナーになります。',
         },
         {
           message: '你可以叫我灵灵',
-          emotion: EMOTION_CODE_MAP['微笑'],
+          emotion: 8,
           japanese: 'りんりんと呼んでください。',
         },
         {
           message: '你呢？如果能告诉我你的名字的话，我会很开心的~',
-          emotion: EMOTION_CODE_MAP['调皮'],
+          emotion: 10,
           japanese: '差し支えなければ、あなたのお名前を教えていただけますか？',
         }
       ].forEach(item => {

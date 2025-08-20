@@ -6,9 +6,8 @@
  * @since 2025-07-13
  */
 
-import type { EmotionName } from '../types/emotion';
-import { getEmotionColorThemeByName, type ColorTheme } from '../services/emotionPack'
+import { getEmotionColorThemeByCode, type ColorTheme } from '../services/emotionPack'
 
-export function getEmotionColorTheme(emotion: EmotionName): ColorTheme {
-  return getEmotionColorThemeByName(emotion)
+export function getEmotionColorTheme(emotionCode: number): ColorTheme {
+  return getEmotionColorThemeByCode(emotionCode)
 }

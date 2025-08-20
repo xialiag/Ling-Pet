@@ -4,7 +4,7 @@ import type { PetResponseItem, PetResponseItemWithAudio } from '../types/ai'
 import { usePetStateStore } from './petState'
 import { useVitsConfigStore } from './vitsConfig'
 import { useAIConfigStore } from './aiConfig'
-import { getDefaultEmotion, EMOTION_CODE_MAP } from '../constants/emotions'
+import { getDefaultEmotionCode } from '../constants/emotions'
 import { voiceVits } from '../services/chatAndVoice/vitsService'
 import { debug } from '@tauri-apps/plugin-log'
 
@@ -126,7 +126,7 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log('等待更多消息...')
     } else {
       currentMessage.value = ''
-      petState.setPetEmotion(EMOTION_CODE_MAP[getDefaultEmotion()])
+      petState.setPetEmotion(getDefaultEmotionCode())
     }
   }
 
@@ -195,7 +195,7 @@ export const useConversationStore = defineStore('conversation', () => {
     }
     responseItems.value = []
     currentMessage.value = ''
-    petState.setPetEmotion(EMOTION_CODE_MAP[getDefaultEmotion()])
+    petState.setPetEmotion(getDefaultEmotionCode())
     isStreaming.value = false
     isTooling.value = false
     abortAfterStream.value = false
