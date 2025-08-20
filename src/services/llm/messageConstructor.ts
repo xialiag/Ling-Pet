@@ -1,7 +1,7 @@
 import { AIMessage } from "../../types/ai"
 import { CHAT_SCENARIO_PROMPT, getResponseFormatPromptForChat } from "./prompts/promptsForChat";
 import { getResponseFormatPromptForSchedule } from "./prompts/promptsForSchedule";
-import { useAIConfigStore } from "../../stores/aiConfig";
+import { useAIConfigStore } from "../../stores/configs/aiConfig";
 import { getHypothesesPrompt, getMemoryPrompt, getScreenshotsPrompt } from "./prompts/general";
 import { useChatHistoryStore } from "../../stores/chatHistory";
 import { SCHEDULE_SCENARIO_PROMPT } from "./prompts/promptsForSchedule";

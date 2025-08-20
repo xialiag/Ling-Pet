@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { DEFAULT_CHARACTER_PROMPT } from '../constants/ai';
+import { DEFAULT_CHARACTER_PROMPT } from '../../constants/ai';
 
 export const useAIConfigStore = defineStore(
   'aiConfig',

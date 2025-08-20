@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, reactive, computed } from 'vue'
-import type { ColorTheme, EmotionDescription } from '../types/emotion'
+import type { ColorTheme, EmotionDescription } from '../../types/emotion'
 
 export const useAppearanceConfigStore = defineStore(
   'appearanceConfig',

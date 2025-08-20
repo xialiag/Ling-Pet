@@ -2,7 +2,7 @@ import { appDataDir } from '@tauri-apps/api/path'
 import { readDir, readTextFile, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { extractZipFile } from '../utils/archive'
-import { useAppearanceConfigStore } from '../stores/appearanceConfig'
+import { useAppearanceConfigStore } from '../stores/configs/appearanceConfig'
 import type { ColorTheme, EmotionDescription } from '../types/emotion'
 
 // 内置表情包位于 public/default_emotion_pack 下，首次或版本不匹配时从该目录复制到应用数据目录
