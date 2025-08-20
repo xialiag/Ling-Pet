@@ -147,7 +147,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useVitsConfigStore } from '../../stores/vitsConfig';
+import { useVitsConfigStore } from '../../stores/configs/vitsConfig';
 import { probeSbv2 } from '../../services/chatAndVoice/sbv2Process';
 import { startSbv2 } from '../../services/chatAndVoice/sbv2Process';
 import VitsInstaller from './VitsInstaller.vue';

@@ -200,7 +200,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useChatHistoryStore } from '../stores/chatHistory';
-import { useVitsConfigStore } from '../stores/vitsConfig';
+import { useVitsConfigStore } from '../stores/configs/vitsConfig';
 import { getEmotionColorTheme } from '../constants/emotionColors';
 import { codeToEmotion } from '../constants/emotions';
 import { getEmotionImageSrcByCode } from '../services/emotionPack';

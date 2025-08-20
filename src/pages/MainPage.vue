@@ -11,7 +11,7 @@ import { useAppearanceConfigStore } from '../stores/appearanceConfig';
 import { windowListMaintainer } from '../services/screenAnalysis/windowListMaintainer';
 import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManager';
 import { createGlobalHandlersManager } from '../services/events/globalHandlers';
-import { useVitsConfigStore } from '../stores/vitsConfig';
+import { useVitsConfigStore } from '../stores/configs/vitsConfig.ts';
 import { startSbv2 } from '../services/chatAndVoice/sbv2Process';
 import { initEmotionPack, ensureDefaultEmotionPack } from '../services/emotionPack.ts';
 import { registerDefaultTools } from '../services/tools/index.ts';

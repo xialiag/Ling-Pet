@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useVitsConfigStore } from '../../stores/vitsConfig';
+import { useVitsConfigStore } from '../../stores/configs/vitsConfig';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';

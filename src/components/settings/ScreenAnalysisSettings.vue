@@ -101,7 +101,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useScreenAnalysisConfigStore } from '../../stores/screenAnalysisConfig';
+import { useScreenAnalysisConfigStore } from '../../stores/configs/screenAnalysisConfig';
 import { testScreenAnalysis, getScreenshotableWindows } from '../../services/screenAnalysis/screenDescription';
 
 // 默认系统提示词

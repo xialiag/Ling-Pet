@@ -1,4 +1,4 @@
-import { useAIConfigStore } from '../../stores/aiConfig';
+import { useAIConfigStore } from '../../stores/configs/aiConfig';
 import type { AIMessage } from '../../types/ai';
 import { DEFAULT_CHARACTER_PROMPT } from '../../constants/ai';
 import type { ChatCompletion } from 'openai/resources';

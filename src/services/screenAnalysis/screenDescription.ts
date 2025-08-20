@@ -1,4 +1,4 @@
-import { useScreenAnalysisConfigStore } from '../../stores/screenAnalysisConfig';
+import { useScreenAnalysisConfigStore } from '../../stores/configs/screenAnalysisConfig';
 import type { AIMessage } from '../../types/ai';
 import type { ChatCompletion } from 'openai/resources';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';

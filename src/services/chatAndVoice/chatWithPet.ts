@@ -1,5 +1,5 @@
 import { AIMessage } from "../../types/ai";
-import { useAIConfigStore } from "../../stores/aiConfig";
+import { useAIConfigStore } from "../../stores/configs/aiConfig";
 import { useChatHistoryStore } from "../../stores/chatHistory";
 import { constructMessageForChat } from "../llm/messageConstructor";
 import { invokeLLM } from "../llm/invokeLLM";

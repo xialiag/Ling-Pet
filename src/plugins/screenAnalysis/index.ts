@@ -1,7 +1,7 @@
 import { type HandlerDescriptor } from '../../services/events/handlerManager';
 import { handleNewWindows } from './onNewWindows';
 
-import { useScreenAnalysisConfigStore } from '../../stores/screenAnalysisConfig';
+import { useScreenAnalysisConfigStore } from '../../stores/configs/screenAnalysisConfig';
 
 export function screenAnalysisPluginHandlers(): HandlerDescriptor[] {
   const sac = useScreenAnalysisConfigStore();
