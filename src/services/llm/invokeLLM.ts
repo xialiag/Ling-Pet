@@ -28,6 +28,15 @@ type ToolCall = {
   }
 }
 
+function functionCallMessageCompatibility(args: string[]): string {
+  // 把array转化成key为`arg${i}`的object
+  const obj = args.reduce((acc, curr, index) => {
+    acc[`arg${index}`] = curr;
+    return acc;
+  }, {} as Record<string, string>);
+  return JSON.stringify(obj);
+}
+
 export async function invokeLLM(params: InvokeLLMParams): Promise<AIMessage[]> {
   const maxIterations = params.maxIterations ?? 2
   const messagesForLLM: AIMessage[] = params.messages.slice() // copy to mutate for iterations
@@ -54,17 +63,11 @@ export async function invokeLLM(params: InvokeLLMParams): Promise<AIMessage[]> {
       const toolHandler = createToolCallChunkHandler(async (name, args) => {
         // 为本次工具调用生成一个与 assistant.tool_calls 对应的 id
         const id = `tool_${Date.now()}_${toolCalls.length}`
-        // 规范化 arguments：若已为字符串则直接使用，否则序列化
-        const argStr = typeof args === 'string'
-          ? args
-          : Array.isArray(args)
-            ? JSON.stringify(args.length === 1 ? args[0] : args)
-            : JSON.stringify(args ?? {})
         // 记录本轮将要注入到 assistant 消息里的 tool_calls
         toolCalls.push({
           id,
           type: 'function',
-          function: { name, arguments: argStr }
+          function: { name, arguments: functionCallMessageCompatibility(args) }
         })
         // 不中断流；callToolByName 已内部兜底错误并返回 ExecToolResult
         console.log('调用工具:', name)
