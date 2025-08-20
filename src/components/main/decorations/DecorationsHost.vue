@@ -3,7 +3,7 @@
 </template>
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { useAppearanceConfigStore } from '../../../stores/appearanceConfig';
+import { useAppearanceConfigStore } from '../../../stores/configs/appearanceConfig';
 import CircleDecoration from './CircleDecoration.vue';
 import FallingStarsDecoration from './FallingStarsDecoration.vue';
 

@@ -14,7 +14,7 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { useAppearanceConfigStore } from '../../../stores/appearanceConfig';
+import { useAppearanceConfigStore } from '../../../stores/configs/appearanceConfig';
 
 const ac = useAppearanceConfigStore();
 const active = computed(() => ac.decorationType === 'circle');

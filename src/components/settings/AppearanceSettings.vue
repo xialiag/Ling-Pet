@@ -76,7 +76,7 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
-import { useAppearanceConfigStore } from '../../stores/appearanceConfig';
+import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig';
 import { listEmotionPacks, getActiveEmotionPack, importEmotionPackFromZip, setActiveEmotionPack } from '../../services/emotionPack'
 import { open } from '@tauri-apps/plugin-dialog'
 import { appDataDir } from '@tauri-apps/api/path'

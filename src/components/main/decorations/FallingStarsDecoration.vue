@@ -16,7 +16,7 @@
 </template>
 <script lang="ts" setup>
 import { computed, onMounted, ref, watch } from 'vue';
-import { useAppearanceConfigStore } from '../../../stores/appearanceConfig';
+import { useAppearanceConfigStore } from '../../../stores/configs/appearanceConfig';
 
 // 说明：本特效采用纯 CSS + 少量随机初始化，不引入额外粒子/动画库（如 tsParticles）以减少体积与运行开销。
 // 若未来需要更复杂的交互（碰撞、交汇等）可再考虑 WebGL/Canvas 库。

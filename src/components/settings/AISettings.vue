@@ -115,7 +115,7 @@
 <script setup lang="ts">
 import { ref  } from 'vue';
 import { DEFAULT_CHARACTER_PROMPT } from '../../constants/ai';
-import { useAIConfigStore } from '../../stores/aiConfig';
+import { useAIConfigStore } from '../../stores/configs/aiConfig';
 import { testAIConnection } from '../../services/chatAndVoice/aiService';
 
 // 测试相关
