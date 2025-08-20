@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { useAppearanceConfigStore } from './stores/appearanceConfig';
+import { useAppearanceConfigStore } from './stores/configs/appearanceConfig';
 import { usePetStateStore } from './stores/petState';
-import { useAIConfigStore } from './stores/aiConfig';
+import { useAIConfigStore } from './stores/configs/aiConfig';
 import { useChatHistoryStore } from './stores/chatHistory';
 import { useScreenAnalysisConfigStore } from './stores/configs/screenAnalysisConfig';
 import { useVitsConfigStore } from './stores/configs/vitsConfig';

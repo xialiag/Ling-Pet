@@ -7,7 +7,7 @@ import Input from '../components/main/Input.vue';
 import SettingButton from '../components/main/SettingButton.vue';
 import ChatHistoryButton from '../components/main/ChatHistoryButton.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
-import { useAppearanceConfigStore } from '../stores/appearanceConfig';
+import { useAppearanceConfigStore } from '../stores/configs/appearanceConfig';
 import { windowListMaintainer } from '../services/screenAnalysis/windowListMaintainer';
 import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManager';
 import { createGlobalHandlersManager } from '../services/events/globalHandlers';

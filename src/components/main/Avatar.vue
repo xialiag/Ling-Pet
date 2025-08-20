@@ -26,7 +26,7 @@ import { codeToEmotion } from '../../constants/emotions';
 import { getEmotionImageSrcByCode } from '../../services/emotionPack'
 import { useConversationStore } from '../../stores/conversation';
 import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter';
-import { useAppearanceConfigStore } from '../../stores/appearanceConfig'
+import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig'
 import { useMemoryStore } from '../../stores/memory';
 
 const state = usePetStateStore()

@@ -1,6 +1,6 @@
 import { ScreenshotableWindow } from "tauri-plugin-screenshots-api";
 import { describeScreens } from "../../services/screenAnalysis/screenDescription";
-import { useAIConfigStore } from "../../stores/aiConfig";
+import { useAIConfigStore } from "../../stores/configs/aiConfig";
 import { chatWithPetStream } from "../../services/chatAndVoice/chatWithPet";
 import { useConversationStore } from "../../stores/conversation";
 import { usePetStateStore } from "../../stores/petState";
