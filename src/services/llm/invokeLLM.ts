@@ -75,6 +75,7 @@ export async function invokeLLM(params: InvokeLLMParams): Promise<AIMessage[]> {
 
       const r = await callAIStream(messagesForLLM, [petHandler, toolHandler])
       if (!r.success) {
+        conversation.finish()
         // 失败时，结束并返回已积累的 transcript（不额外注入错误消息）
         return transcript
       }

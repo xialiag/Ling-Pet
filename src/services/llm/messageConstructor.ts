@@ -14,23 +14,26 @@ export async function constructMessageForChat(userMessage: string): Promise<AIMe
 
   const systemPrompt = CHAT_SCENARIO_PROMPT + getResponseFormatPromptForChat() + acs.systemPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
 
-  messages.push({role: 'system', content: systemPrompt})
+  messages.push({ role: 'system', content: systemPrompt })
 
   const historyLength = Math.min(chs.chatHistory.length, acs.historyMaxLength);
+  const historyMessages: AIMessage[] = [];
   for (let i = chs.chatHistory.length - historyLength; i < chs.chatHistory.length; i++) {
-    if (i === chs.chatHistory.length - historyLength && chs.chatHistory[i].role === 'tool') continue  // 如果第一条是tool就跳过，防止报错
-
     const message = chs.chatHistory[i];
     if (message.role === 'user' || message.role === 'assistant' || message.role === 'tool') {
-      messages.push(message);
+      historyMessages.push(message);
     }
+  }
+  // 删去开头的所有tool消息
+  while (historyMessages.length > 0 && historyMessages[0].role === 'tool') {
+    historyMessages.shift();
   }
 
   messages.push({
     role: 'user',
     content: userMessage,
   });
-  
+
   return messages
 }
 
@@ -41,7 +44,7 @@ export async function constructMessageForSchedule(scheduleMessage: string): Prom
 
   const systemPrompt = SCHEDULE_SCENARIO_PROMPT + getResponseFormatPromptForSchedule() + acs.systemPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
 
-  messages.push({role: 'system', content: systemPrompt})
+  messages.push({ role: 'system', content: systemPrompt })
 
   // const historyLength = Math.min(chs.chatHistory.length, 7);
   // for (let i = chs.chatHistory.length - historyLength; i < chs.chatHistory.length; i++) {
