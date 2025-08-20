@@ -109,7 +109,7 @@ const formattedOpacity = computed(() => `${Math.round(ac.opacity * 100)}%`);
 
 // 表情包管理状态
 const currentPack = ref<string | null>(null)
-type PackPreview = { name: string; src: string; code: number; defaultName: string }
+type PackPreview = { name: string; src: string; code: number;}
 const previews = ref<PackPreview[]>([])
 
 function joinPath(a: string, b: string) {
@@ -123,11 +123,10 @@ async function buildPreview(name: string): Promise<PackPreview | null> {
     const root = joinPath(joinPath(base, 'emotion_packs'), name)
     const cfgText = await readTextFile(joinPath(root, 'config.json'))
     const cfg = JSON.parse(cfgText) as { map: Record<string, number>; default: string }
-    const def = cfg.default
-    const code = cfg.map[def]
+    const code = cfg.default
     if (typeof code !== 'number') return null
     const img = convertFileSrc(joinPath(root, `${code}.png`))
-    return { name, src: img, code, defaultName: def }
+    return { name, src: img, code }
   } catch (e) {
     console.warn('构建预览失败: ', name, e)
     return null

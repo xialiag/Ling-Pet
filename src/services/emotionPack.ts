@@ -1,9 +1,12 @@
 import { appDataDir } from '@tauri-apps/api/path'
-import { readDir, readTextFile, exists, mkdir, writeFile, remove } from '@tauri-apps/plugin-fs'
+import { readDir, readTextFile, exists, mkdir, writeFile } from '@tauri-apps/plugin-fs'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { extractZipFile } from '../utils/archive'
 import { useAppearanceConfigStore } from '../stores/appearanceConfig'
 import type { ColorTheme, EmotionDescription } from '../types/emotion'
+
+// 内置表情包位于 public/default_emotion_pack 下，首次或版本不匹配时从该目录复制到应用数据目录
+const DEFAULT_PACK_PUBLIC_ROOT = '/default_emotion_pack'
 
 // 兼容导入：从 types 中 re-export
 export type { EmotionDescription, ColorTheme }
@@ -80,23 +83,71 @@ export async function listEmotionPacks(): Promise<string[]> {
 export async function ensureDefaultEmotionPack(): Promise<void> {
   const packsRoot = await getPacksRoot()
   if (!(await exists(packsRoot))) await mkdir(packsRoot, { recursive: true })
-  const list = await listEmotionPacks()
-  if (list.includes('default_emotion_pack')) {
-    // 已存在 default_emotion_pack，无需解压
-    return
-  }
-  // 从内置资源解压默认表情包
+
+  // 读取已安装版本
+  const defaultDir = joinPath(packsRoot, 'default_emotion_pack')
+  const installedConfigPath = joinPath(defaultDir, 'config.json')
+  let installedVersion: number | null = null
   try {
-    console.log('正在解压默认表情包...')
-    const resp = await fetch('/default_emotion_pack.zip')
-    if (!resp.ok) throw new Error(`无法读取内置表情包: ${resp.status}`)
-    const buf = await resp.arrayBuffer()
-    const tmpZip = joinPath(packsRoot, 'default_emotion_pack.zip')
-    await writeFile(tmpZip, new Uint8Array(buf))
-    await extractZipFile(tmpZip, packsRoot)
-    try { await remove(tmpZip) } catch { }
+    if (await exists(installedConfigPath)) {
+      const raw = await readTextFile(installedConfigPath)
+      const cfg = JSON.parse(raw) as any
+      installedVersion = typeof cfg.version === 'number' ? cfg.version : null
+    }
+  } catch {
+    installedVersion = null
+  }
+
+  // 读取内置版本（来自 public 目录里的 config.json）
+  let expectedVersion: number | null = null
+  try {
+    const resp = await fetch(`${DEFAULT_PACK_PUBLIC_ROOT}/config.json`)
+    if (resp.ok) {
+      const json = await resp.json()
+      expectedVersion = typeof json?.version === 'number' ? json.version : null
+    }
+  } catch {
+    expectedVersion = null
+  }
+
+  const needUpdate = !(await exists(defaultDir))
+    || installedVersion === null
+    || (expectedVersion !== null && installedVersion !== expectedVersion)
+  if (!needUpdate) return
+
+  try {
+    console.log('正在复制内置默认表情包...')
+    // 确保目标目录存在
+    if (!(await exists(defaultDir))) await mkdir(defaultDir, { recursive: true })
+
+    // 拉取并写入 config.json
+    const cfgResp = await fetch(`${DEFAULT_PACK_PUBLIC_ROOT}/config.json`)
+    if (!cfgResp.ok) throw new Error('无法读取默认表情包 config.json')
+    const cfgText = await cfgResp.text()
+    await writeFile(installedConfigPath, new TextEncoder().encode(cfgText))
+
+    // 拉取并写入 color.json
+    const colorResp = await fetch(`${DEFAULT_PACK_PUBLIC_ROOT}/color.json`)
+    if (!colorResp.ok) throw new Error('无法读取默认表情包 color.json')
+    const colorText = await colorResp.text()
+    const installedColorPath = joinPath(defaultDir, 'color.json')
+    await writeFile(installedColorPath, new TextEncoder().encode(colorText))
+
+    // 根据 config.map 复制图片
+    const cfg = JSON.parse(cfgText) as { map: Record<string, number> }
+    const codes = Array.from(new Set(Object.values(cfg.map)))
+    for (const code of codes) {
+      const imgResp = await fetch(`${DEFAULT_PACK_PUBLIC_ROOT}/${code}.png`)
+      if (!imgResp.ok) {
+        console.warn('缺少默认表情图片:', code)
+        continue
+      }
+      const buf = await imgResp.arrayBuffer()
+      const dst = joinPath(defaultDir, `${code}.png`)
+      await writeFile(dst, new Uint8Array(buf))
+    }
   } catch (err) {
-    console.error('解压默认表情包失败: ', err)
+    console.error('复制默认表情包失败: ', err)
   }
 }
 
