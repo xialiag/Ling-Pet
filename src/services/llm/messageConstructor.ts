@@ -29,6 +29,8 @@ export async function constructMessageForChat(userMessage: string): Promise<AIMe
     historyMessages.shift();
   }
 
+  messages.push(...historyMessages);
+
   messages.push({
     role: 'user',
     content: userMessage,
