@@ -2,10 +2,7 @@
   <div class="chat-bubble-window">
     <div class="bubble-container">
       <div class="bubble-content" 
-           :class="{ 
-             transparent: ac.bubbleTransparent, 
-             'no-border': ac.bubbleTransparent && !ac.bubbleShowBorder 
-           }" 
+           :class="bubbleClasses" 
            :style="bubbleStyles">
         <div class="bubble-text" :style="{ textAlign, color: colorTheme.text }">
           {{ displayedMessage }}<span v-if="isTyping" class="typing-cursor" :style="{ color: colorTheme.text }">|</span>
@@ -18,10 +15,10 @@
             Q12,15 18,18 
             Q12,10 14,0 
             Q3,2 0,0 Z" 
-            :fill="ac.bubbleTransparent ? 'transparent' : colorTheme.background" 
-            :fill-opacity="ac.bubbleTransparent ? '0' : '0.95'" 
-            :stroke="(ac.bubbleTransparent && ac.bubbleShowBorder) ? colorTheme.border : 'none'" 
-            :stroke-width="(ac.bubbleTransparent && ac.bubbleShowBorder) ? '1' : '0'" />
+            :fill="tailStyles.fill" 
+            :fill-opacity="tailStyles.fillOpacity" 
+            :stroke="tailStyles.stroke" 
+            :stroke-width="tailStyles.strokeWidth" />
         </svg>
       </div>
     </div>
@@ -100,6 +97,10 @@
 
   /* 确保渐变与动态背景色兼容 */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 为透明模式定义CSS变量 */
+  --text-shadow-light: 0 1px 3px rgba(255, 255, 255, 0.95), 0 2px 8px rgba(255, 255, 255, 0.6), 1px 1px 2px rgba(100, 116, 139, 0.3), 0 0 10px rgba(255, 255, 255, 0.4);
+  --text-shadow-strong: 0 1px 4px rgba(255, 255, 255, 0.98), 0 2px 12px rgba(255, 255, 255, 0.7), 1px 1px 3px rgba(71, 85, 105, 0.4), 0 0 15px rgba(255, 255, 255, 0.5), 0 0 5px rgba(148, 163, 184, 0.3);
 }
 
 /* 透明模式下的特殊样式 */
@@ -107,6 +108,8 @@
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   animation: none;
+  /* 添加过渡动画使切换更加平滑 */
+  transition: backdrop-filter 0.3s ease, background 0.3s ease, border 0.3s ease, box-shadow 0.3s ease;
 }
 
 .bubble-text {
@@ -140,14 +143,10 @@
 /* 透明模式下的文字样式增强 */
 .bubble-content.transparent .bubble-text {
   font-weight: 600;
-  /* 使用更温暖、更现代的深色，带有轻微蓝调 */
-  color: rgba(51, 65, 85, 0.92);
-  /* 优化文字阴影，创造更柔和的立体效果 */
-  text-shadow: 
-    0 1px 3px rgba(255, 255, 255, 0.95),
-    0 2px 8px rgba(255, 255, 255, 0.6),
-    1px 1px 2px rgba(100, 116, 139, 0.3),
-    0 0 10px rgba(255, 255, 255, 0.4);
+  /* 使用主题颜色但加强不透明度 */
+  filter: contrast(1.2) saturate(1.1);
+  /* 使用CSS变量优化文字阴影 */
+  text-shadow: var(--text-shadow-light);
   /* 增强文本渲染 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -155,15 +154,10 @@
 
 /* 透明模式下无边框时的特殊样式 */
 .bubble-content.transparent.no-border .bubble-text {
-  /* 无边框时使用更深的颜色和更强的对比度 */
+  /* 无边框时使用更强的效果 */
   font-weight: 650;
-  color: rgba(30, 41, 59, 0.94);
-  text-shadow: 
-    0 1px 4px rgba(255, 255, 255, 0.98),
-    0 2px 12px rgba(255, 255, 255, 0.7),
-    1px 1px 3px rgba(71, 85, 105, 0.4),
-    0 0 15px rgba(255, 255, 255, 0.5),
-    0 0 5px rgba(148, 163, 184, 0.3);
+  filter: contrast(1.4) saturate(1.2);
+  text-shadow: var(--text-shadow-strong);
 }
 
 /* 打字机光标 */
@@ -176,11 +170,9 @@
 /* 透明模式下的光标样式增强 */
 .bubble-content.transparent .typing-cursor {
   font-weight: 600;
-  color: rgba(51, 65, 85, 0.92);
-  text-shadow: 
-    0 1px 3px rgba(255, 255, 255, 0.95),
-    0 2px 8px rgba(255, 255, 255, 0.6),
-    0 0 10px rgba(255, 255, 255, 0.4);
+  /* 使用与文字相同的增强效果 */
+  filter: contrast(1.2) saturate(1.1);
+  text-shadow: var(--text-shadow-light);
 }
 
 /* 自定义滚动条样式 */
@@ -340,6 +332,34 @@ let currentTypingId = 0;
 
 // 计算颜色主题（直接使用情绪编号）
 const colorTheme = computed(() => getEmotionColorTheme(petState.currentEmotion))
+
+// 计算气泡类名
+const bubbleClasses = computed(() => ({
+  transparent: ac.bubbleTransparent,
+  'no-border': ac.bubbleTransparent && !ac.bubbleShowBorder
+}))
+
+// 计算SVG尾巴样式
+const tailStyles = computed(() => {
+  const theme = colorTheme.value;
+  const isTransparent = ac.bubbleTransparent;
+  
+  if (isTransparent) {
+    return {
+      fill: 'transparent',
+      fillOpacity: '0',
+      stroke: ac.bubbleShowBorder ? theme.border : 'none',
+      strokeWidth: ac.bubbleShowBorder ? '1' : '0'
+    };
+  } else {
+    return {
+      fill: theme.background,
+      fillOpacity: '0.95',
+      stroke: 'none',
+      strokeWidth: '0'
+    };
+  }
+});
 
 // 计算气泡样式
 const bubbleStyles = computed(() => {

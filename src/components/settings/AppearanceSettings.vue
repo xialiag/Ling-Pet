@@ -52,7 +52,7 @@
               />
             </div>
             <div class="text-caption text-medium-emphasis mb-3">
-              开启后气泡背景将变为透明，仅保留文字和边框
+              开启后气泡背景将变为透明，与桌面背景融合，提供更加简洁的视觉体验
             </div>
             
             <!-- 边框显示选项（仅在透明模式下显示） -->
@@ -67,7 +67,7 @@
                 />
               </div>
               <div class="text-caption text-medium-emphasis">
-                关闭后仅显示文字，达到最简洁的效果
+                关闭后仅显示文字，达到最简洁的效果，适合对简洁界面的喜好
               </div>
             </div>
           </div>
