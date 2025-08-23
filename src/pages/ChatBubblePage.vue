@@ -101,6 +101,16 @@
   /* 为透明模式定义CSS变量 */
   --text-shadow-light: 0 1px 3px rgba(255, 255, 255, 0.95), 0 2px 8px rgba(255, 255, 255, 0.6), 1px 1px 2px rgba(100, 116, 139, 0.3), 0 0 10px rgba(255, 255, 255, 0.4);
   --text-shadow-strong: 0 1px 4px rgba(255, 255, 255, 0.98), 0 2px 12px rgba(255, 255, 255, 0.7), 1px 1px 3px rgba(71, 85, 105, 0.4), 0 0 15px rgba(255, 255, 255, 0.5), 0 0 5px rgba(148, 163, 184, 0.3);
+  
+  /* 透明模式增强效果变量 */
+  --transparent-filter-light: contrast(1.2) saturate(1.1);
+  --transparent-filter-strong: contrast(1.4) saturate(1.2);
+  --transparent-font-weight-light: 600;
+  --transparent-font-weight-strong: 650;
+  
+  /* 暗色主题适配变量 */
+  --text-shadow-light-dark: 0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.6), 1px 1px 2px rgba(100, 116, 139, 0.8), 0 0 10px rgba(0, 0, 0, 0.4);
+  --text-shadow-strong-dark: 0 1px 4px rgba(0, 0, 0, 0.98), 0 2px 12px rgba(0, 0, 0, 0.7), 1px 1px 3px rgba(71, 85, 105, 0.9), 0 0 15px rgba(0, 0, 0, 0.5), 0 0 5px rgba(148, 163, 184, 0.6);
 }
 
 /* 透明模式下的特殊样式 */
@@ -142,9 +152,9 @@
 
 /* 透明模式下的文字样式增强 */
 .bubble-content.transparent .bubble-text {
-  font-weight: 600;
+  font-weight: var(--transparent-font-weight-light);
   /* 使用主题颜色但加强不透明度 */
-  filter: contrast(1.2) saturate(1.1);
+  filter: var(--transparent-filter-light);
   /* 使用CSS变量优化文字阴影 */
   text-shadow: var(--text-shadow-light);
   /* 增强文本渲染 */
@@ -155,8 +165,8 @@
 /* 透明模式下无边框时的特殊样式 */
 .bubble-content.transparent.no-border .bubble-text {
   /* 无边框时使用更强的效果 */
-  font-weight: 650;
-  filter: contrast(1.4) saturate(1.2);
+  font-weight: var(--transparent-font-weight-strong);
+  filter: var(--transparent-filter-strong);
   text-shadow: var(--text-shadow-strong);
 }
 
@@ -169,9 +179,9 @@
 
 /* 透明模式下的光标样式增强 */
 .bubble-content.transparent .typing-cursor {
-  font-weight: 600;
+  font-weight: var(--transparent-font-weight-light);
   /* 使用与文字相同的增强效果 */
-  filter: contrast(1.2) saturate(1.1);
+  filter: var(--transparent-filter-light);
   text-shadow: var(--text-shadow-light);
 }
 
@@ -192,6 +202,20 @@
 
 .bubble-text::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.5);
+}
+
+/* 透明模式下的滚动条优化 */
+.bubble-content.transparent .bubble-text::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.bubble-content.transparent .bubble-text::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.4);
+  box-shadow: 0 1px 3px rgba(255, 255, 255, 0.8);
+}
+
+.bubble-content.transparent .bubble-text::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.6);
 }
 
 /* 光标闪烁动画 */
@@ -297,6 +321,17 @@
     font-size: 13px;
     padding: 12px 16px;
   }
+  
+  /* 小屏幕下适度减弱透明模式的增强效果 */
+  .bubble-content.transparent .bubble-text {
+    filter: contrast(1.1) saturate(1.05);
+    font-weight: 550;
+  }
+  
+  .bubble-content.transparent.no-border .bubble-text {
+    filter: contrast(1.2) saturate(1.1);
+    font-weight: 600;
+  }
 }
 
 /* 高DPI屏幕优化 */
@@ -345,18 +380,23 @@ const tailStyles = computed(() => {
   const isTransparent = ac.bubbleTransparent;
   
   if (isTransparent) {
+    // 透明模式：尾巴也透明，但保持边框一致性
     return {
       fill: 'transparent',
       fillOpacity: '0',
       stroke: ac.bubbleShowBorder ? theme.border : 'none',
-      strokeWidth: ac.bubbleShowBorder ? '1' : '0'
+      strokeWidth: ac.bubbleShowBorder ? '1' : '0',
+      // 添加过渡效果
+      transition: 'stroke 0.3s ease, stroke-width 0.3s ease'
     };
   } else {
+    // 正常模式：保持原有的毛玻璃效果
     return {
       fill: theme.background,
       fillOpacity: '0.95',
       stroke: 'none',
-      strokeWidth: '0'
+      strokeWidth: '0',
+      transition: 'fill 0.3s ease, fill-opacity 0.3s ease'
     };
   }
 });
@@ -398,14 +438,18 @@ const bubbleStyles = computed(() => {
 
 // 打字机效果
 const typeMessage = async (message: string) => {
-  const typeSpeed = 50
   if (!message) return;
 
   // 创建新的打字任务ID，中断之前的打字动画
   const typingId = ++currentTypingId;
 
-  // 根据文字长度决定对齐方式
+  // 根据文字长度决定对齐方式和打字速度
   textAlign.value = message.length > 30 ? 'left' : 'center';
+  
+  // 动态调整打字速度：短消息慢一些，长消息快一些
+  const baseSpeed = 50;
+  const typeSpeed = message.length > 100 ? baseSpeed * 0.6 : 
+                   message.length > 50 ? baseSpeed * 0.8 : baseSpeed;
 
   isTyping.value = true;
   displayedMessage.value = '';
@@ -417,7 +461,10 @@ const typeMessage = async (message: string) => {
     }
     
     displayedMessage.value = message.slice(0, i);
-    await new Promise(resolve => setTimeout(resolve, typeSpeed));
+    
+    // 在透明模式下轻微加快速度，因为效果更加明显
+    const adjustedSpeed = ac.bubbleTransparent ? typeSpeed * 0.9 : typeSpeed;
+    await new Promise(resolve => setTimeout(resolve, adjustedSpeed));
   }
 
   // 只有当前任务完成时才设置 isTyping 为 false
