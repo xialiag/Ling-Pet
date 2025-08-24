@@ -73,7 +73,7 @@
                 />
               </div>
               <div class="text-caption text-medium-emphasis">
-                关闭后仅显示文字，达到最简洁的效果，适合对简洁界面的喜好
+                关闭后仅显示文字，达到最简洁的效果
               </div>
             </div>
           </div>
