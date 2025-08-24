@@ -77,20 +77,14 @@ async function setWindowToSquare() {
 function handleContextMenu(event: MouseEvent) {
   const isDevToolsEnabled = ac.showDevTools ?? false;
   
-  // 如果开发者工具开启，显示自定义菜单但不阻止默认右键菜单
-  if (isDevToolsEnabled) {
-    // 显示自定义右键菜单
-    contextMenuRef.value?.showMenu(event);
-    // 不阻止默认右键菜单，让浏览器处理
-    return;
-  }
-  
-  // 开发者工具未开启时，阻止默认右键菜单并显示自定义菜单
-  event.preventDefault();
-  event.stopPropagation();
-  
   // 显示自定义右键菜单
   contextMenuRef.value?.showMenu(event);
+  
+  // 如果开发者工具未开启，阻止默认右键菜单
+  if (!isDevToolsEnabled) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
 }
 
 async function startPetSizeWatching() {

@@ -4,7 +4,7 @@
       v-if="isVisible"
       ref="menuRef"
       class="context-menu"
-      :style="menuStyle"
+      :style="menuPositionStyle"
       @click.stop
       @contextmenu.prevent
     >
@@ -39,14 +39,8 @@ import { ref, computed, nextTick } from 'vue'
 import { getAllWebviewWindows, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig'
 
-// 类型定义
-interface AppearanceConfig {
-  petSize: number
-  opacity: number
-  showDevTools?: boolean
-}
-
-// 通用窗口配置接口
+// 获取外观配置
+const ac = useAppearanceConfigStore()
 interface WindowConfig {
   title: string
   url: string
@@ -89,8 +83,7 @@ async function openOrCloseWindow(windowLabel: string, windowConfig: WindowConfig
   new WebviewWindow(windowLabel, windowConfig)
 }
 
-// 获取外观配置
-const ac = useAppearanceConfigStore() as AppearanceConfig & { showDevTools: boolean }
+// 通用窗口配置接口
 
 // 计算属性：是否显示开发者工具
 const showDevTools = computed(() => ac.showDevTools ?? false)
@@ -100,41 +93,34 @@ const isVisible = ref(false)
 const menuPosition = ref({ x: 0, y: 0 })
 const menuRef = ref<HTMLElement>()
 
-// 根据桌宠大小计算缩放因子和相关尺寸
-const uiScale = computed(() => {
+// 合并所有UI尺寸计算到一个计算属性中
+const menuStyle = computed(() => {
   // 根据桌宠大小计算缩放因子，范围在 0.7 到 1.2 之间
   const scale = Math.max(0.7, Math.min(1.2, ac.petSize / 200))
+  // 基础尺寸：桌宠大小的 80%，但至少 120px，最多 200px
+  const baseWidth = Math.max(120, Math.min(200, ac.petSize * 0.8))
   
   return {
     scale,
     fontSize: Math.round(13 * scale),
     iconSize: Math.round(16 * scale),
     padding: Math.round(8 * scale),
-    borderRadius: Math.round(8 * scale)
-  }
-})
-
-// 根据桌宠大小计算菜单尺寸
-const menuDimensions = computed(() => {
-  // 基础尺寸：桌宠大小的 80%，但至少 120px，最多 200px
-  const baseWidth = Math.max(120, Math.min(200, ac.petSize * 0.8))
-  
-  return {
+    borderRadius: Math.round(8 * scale),
     width: baseWidth
   }
 })
 
 // 计算图标尺寸
-const iconSize = computed(() => uiScale.value.iconSize)
+const iconSize = computed(() => menuStyle.value.iconSize)
 
-// 计算菜单位置样式
-const menuStyle = computed(() => ({
+// 计算菜单位置和样式
+const menuPositionStyle = computed(() => ({
   left: `${menuPosition.value.x}px`,
   top: `${menuPosition.value.y}px`,
-  minWidth: `${menuDimensions.value.width}px`,
-  fontSize: `${uiScale.value.fontSize}px`,
-  borderRadius: `${uiScale.value.borderRadius}px`,
-  '--menu-padding': `${uiScale.value.padding}px`,
+  minWidth: `${menuStyle.value.width}px`,
+  fontSize: `${menuStyle.value.fontSize}px`,
+  borderRadius: `${menuStyle.value.borderRadius}px`,
+  '--menu-padding': `${menuStyle.value.padding}px`,
 }))
 
 // 显示菜单

@@ -9,10 +9,10 @@ import { useConversationStore } from './stores/conversation';
 import { onMounted, watch } from 'vue';
 import { denySave } from '@tauri-store/pinia';
 
-const ac = useAppearanceConfigStore();
-
 // 常量定义
-const MAIN_PAGE_PATHS = ['', '#/', '#'];
+const MAIN_PAGE_PATHS = ['', '#/', '#'] as const;
+
+const ac = useAppearanceConfigStore();
 
 // 工具函数：检查是否为主页面
 function isMainPage(): boolean {
@@ -24,6 +24,14 @@ function isDevToolsEnabled(): boolean {
   return ac.showDevTools ?? false;
 }
 
+// 优化事件处理函数
+function handleEvent(event: Event, shouldPrevent: boolean) {
+  if (!isDevToolsEnabled() && shouldPrevent) {
+    event.preventDefault();
+    return false;
+  }
+}
+
 // 右键菜单控制函数
 function handleContextMenu(event: MouseEvent) {
   // 如果在主页面，让主页面组件自己处理右键菜单
@@ -32,26 +40,17 @@ function handleContextMenu(event: MouseEvent) {
   }
   
   // 在其他页面，如果开发者工具未开启，则禁用右键菜单
-  if (!isDevToolsEnabled()) {
-    event.preventDefault();
-    return false;
-  }
+  return handleEvent(event, true);
 }
 
 // 禁用选择
 function handleSelectStart(event: Event) {
-  if (!isDevToolsEnabled()) {
-    event.preventDefault();
-    return false;
-  }
+  return handleEvent(event, true);
 }
 
 // 禁用拖拽
 function handleDragStart(event: DragEvent) {
-  if (!isDevToolsEnabled()) {
-    event.preventDefault();
-    return false;
-  }
+  return handleEvent(event, true);
 }
 
 onMounted(async () => {
