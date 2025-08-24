@@ -11,26 +11,36 @@ import { denySave } from '@tauri-store/pinia';
 
 const ac = useAppearanceConfigStore();
 
+// 常量定义
+const MAIN_PAGE_PATHS = ['', '#/', '#'];
+
+// 工具函数：检查是否为主页面
+function isMainPage(): boolean {
+  return MAIN_PAGE_PATHS.includes(window.location.hash);
+}
+
+// 工具函数：检查开发者工具是否开启
+function isDevToolsEnabled(): boolean {
+  return ac.showDevTools ?? false;
+}
+
 // 右键菜单控制函数
 function handleContextMenu(event: MouseEvent) {
-  // 检查是否在主页面（路径为 '/' 或 '/#/'）
-  const isMainPage = window.location.hash === '' || window.location.hash === '#/' || window.location.hash === '#';
-  
   // 如果在主页面，让主页面组件自己处理右键菜单
-  if (isMainPage) {
+  if (isMainPage()) {
     return;
   }
   
   // 在其他页面，如果开发者工具未开启，则禁用右键菜单
-  if (!ac.showDevTools) {
+  if (!isDevToolsEnabled()) {
     event.preventDefault();
     return false;
   }
 }
 
-// 禁用选择和拖拽
+// 禁用选择
 function handleSelectStart(event: Event) {
-  if (!ac.showDevTools) {
+  if (!isDevToolsEnabled()) {
     event.preventDefault();
     return false;
   }
@@ -38,7 +48,7 @@ function handleSelectStart(event: Event) {
 
 // 禁用拖拽
 function handleDragStart(event: DragEvent) {
-  if (!ac.showDevTools) {
+  if (!isDevToolsEnabled()) {
     event.preventDefault();
     return false;
   }
@@ -62,14 +72,10 @@ onMounted(async () => {
   document.addEventListener('dragstart', handleDragStart);
 
   // 监听开发者工具设置变化，动态更新体选择器样式
-  watch(() => ac.showDevTools, (enabled) => {
+  watch(() => isDevToolsEnabled(), (enabled) => {
     const appElement = document.getElementById('app');
     if (appElement) {
-      if (enabled) {
-        appElement.classList.remove('disable-context-menu');
-      } else {
-        appElement.classList.add('disable-context-menu');
-      }
+      appElement.classList.toggle('disable-context-menu', !enabled);
     }
   }, { immediate: true });
 });

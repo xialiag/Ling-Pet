@@ -17,10 +17,10 @@
         <v-icon :size="iconSize" class="menu-icon">mdi-message-text-outline</v-icon>
         <span class="menu-text">查看聊天记录</span>
       </div>
-      <div v-if="(ac as any).showDevTools" class="menu-divider"></div>
-      <div v-if="(ac as any).showDevTools" class="menu-item" @click="toggleDevTools">
+      <div v-if="showDevTools" class="menu-divider"></div>
+      <div v-if="showDevTools" class="menu-item" @click="toggleDevTools">
         <v-icon :size="iconSize" class="menu-icon">mdi-bug-outline</v-icon>
-        <span class="menu-text">关闭开发者工具</span>
+        <span class="menu-text">{{ showDevTools ? '关闭开发者工具' : '开启开发者工具' }}</span>
       </div>
     </div>
     
@@ -39,8 +39,61 @@ import { ref, computed, nextTick } from 'vue'
 import { getAllWebviewWindows, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig'
 
+// 类型定义
+interface AppearanceConfig {
+  petSize: number
+  opacity: number
+  showDevTools?: boolean
+}
+
+// 通用窗口配置接口
+interface WindowConfig {
+  title: string
+  url: string
+  label: string
+  width: number
+  height: number
+  resizable?: boolean
+  transparent?: boolean
+  decorations?: boolean
+  alwaysOnTop?: boolean
+  skipTaskbar?: boolean
+  center?: boolean
+  visible?: boolean
+}
+
+// 创建通用窗口配置
+function createWindowConfig(config: Partial<WindowConfig>): WindowConfig {
+  return {
+    resizable: true,
+    transparent: false,
+    decorations: true,
+    alwaysOnTop: false,
+    skipTaskbar: false,
+    center: false,
+    visible: false,
+    ...config
+  } as WindowConfig
+}
+
+// 通用窗口打开函数
+async function openOrCloseWindow(windowLabel: string, windowConfig: WindowConfig) {
+  const allWindows = await getAllWebviewWindows()
+  const existingWindow = allWindows.find(window => window.label === windowLabel)
+  
+  if (existingWindow) {
+    await existingWindow.close()
+    return
+  }
+  
+  new WebviewWindow(windowLabel, windowConfig)
+}
+
 // 获取外观配置
-const ac = useAppearanceConfigStore()
+const ac = useAppearanceConfigStore() as AppearanceConfig & { showDevTools: boolean }
+
+// 计算属性：是否显示开发者工具
+const showDevTools = computed(() => ac.showDevTools ?? false)
 
 // 组件状态
 const isVisible = ref(false)
@@ -54,9 +107,9 @@ const menuDimensions = computed(() => {
   
   // 动态计算高度：根据菜单项数量调整
   const baseItemCount = 2 // 基础项目：设置、聊天记录
-  const devToolsItems = (ac as any).showDevTools ? 1 : 0 // 开发者工具项
+  const devToolsItems = showDevTools.value ? 1 : 0 // 开发者工具项
   const totalItems = baseItemCount + devToolsItems
-  const dividerCount = (ac as any).showDevTools ? 2 : 1 // 分割线数量
+  const dividerCount = showDevTools.value ? 2 : 1 // 分割线数量
   
   // 每个菜单项约 32px，分割线约 9px，padding 8px
   const itemHeight = 32 * (ac.petSize / 200) // 根据桌宠大小缩放
@@ -143,66 +196,36 @@ const hideMenu = () => {
 const openSettings = async () => {
   hideMenu()
   
-  const allWindows = await getAllWebviewWindows()
-  const settingsWindow = allWindows.find(window => window.label === 'settings')
-  
-  if (settingsWindow) {
-    await settingsWindow.close()
-    return
-  }
-  
-  const settingWindowConfig = {
+  const windowConfig = createWindowConfig({
     title: '设置',
     url: '/#/settings',
     label: 'settings',
     width: 800,
-    height: 600,
-    resizable: true,
-    transparent: false,
-    decorations: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    center: false,
-    visible: false,
-  }
+    height: 600
+  })
   
-  new WebviewWindow('settings', settingWindowConfig)
+  await openOrCloseWindow('settings', windowConfig)
 }
 
 // 打开聊天记录窗口
 const openChatHistory = async () => {
   hideMenu()
   
-  const allWindows = await getAllWebviewWindows()
-  const chatHistoryWindow = allWindows.find(window => window.label === 'chat-history')
-  
-  if (chatHistoryWindow) {
-    await chatHistoryWindow.close()
-    return
-  }
-  
-  const chatHistoryWindowConfig = {
+  const windowConfig = createWindowConfig({
     title: '聊天记录',
     url: '/#/chat-history',
     label: 'chat-history',
     width: 600,
-    height: 700,
-    resizable: true,
-    transparent: false,
-    decorations: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    center: false,
-    visible: false,
-  }
+    height: 700
+  })
   
-  new WebviewWindow('chat-history', chatHistoryWindowConfig)
+  await openOrCloseWindow('chat-history', windowConfig)
 }
 
 // 切换开发者工具
 const toggleDevTools = () => {
   hideMenu()
-  ;(ac as any).showDevTools = !(ac as any).showDevTools
+  ac.showDevTools = !ac.showDevTools
 }
 
 // 导出方法供父组件使用

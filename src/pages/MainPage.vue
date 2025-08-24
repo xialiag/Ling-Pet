@@ -76,12 +76,12 @@ async function setWindowToSquare() {
 
 // 处理右键菜单事件
 function handleContextMenu(event: MouseEvent) {
+  const isDevToolsEnabled = (ac as any).showDevTools;
+  
   // 如果开发者工具开启，显示自定义菜单但不阻止默认右键菜单
-  if ((ac as any).showDevTools) {
+  if (isDevToolsEnabled) {
     // 显示自定义右键菜单
-    if (contextMenuRef.value) {
-      contextMenuRef.value.showMenu(event);
-    }
+    contextMenuRef.value?.showMenu(event);
     // 不阻止默认右键菜单，让浏览器处理
     return;
   }
@@ -91,9 +91,7 @@ function handleContextMenu(event: MouseEvent) {
   event.stopPropagation();
   
   // 显示自定义右键菜单
-  if (contextMenuRef.value) {
-    contextMenuRef.value.showMenu(event);
-  }
+  contextMenuRef.value?.showMenu(event);
 }
 
 async function startPetSizeWatching() {
