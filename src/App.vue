@@ -16,7 +16,7 @@ const ac = useAppearanceConfigStore();
 
 // 工具函数：检查是否为主页面
 function isMainPage(): boolean {
-  return MAIN_PAGE_PATHS.includes(window.location.hash);
+  return MAIN_PAGE_PATHS.includes(window.location.hash as typeof MAIN_PAGE_PATHS[number]);
 }
 
 // 工具函数：检查开发者工具是否开启
