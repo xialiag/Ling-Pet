@@ -2,7 +2,7 @@ import { useVitsConfigStore, formatApiUrl } from '../../stores/configs/vitsConfi
 import { fetch } from '@tauri-apps/plugin-http'
 
 // Style-Bert-VITS2 语音合成
-async function voiceStyleBertVits2(
+function voiceStyleBertVits2(
   text: string,
   vitsConfig: ReturnType<typeof useVitsConfigStore>
 ): Promise<Blob> {
@@ -16,23 +16,22 @@ async function voiceStyleBertVits2(
   // formatApiUrl 已经包含 /synthesize 路径
   const apiUrl = formatApiUrl(vitsConfig.baseURL, 'style-bert-vits2')
 
-  const response = await fetch(apiUrl, {
+  return fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
+  }).then(response => {
+    if (!response.ok) {
+      throw new Error(`Style-Bert-VITS2 API error: ${response.status} ${response.statusText}`)
+    }
+    return response.blob()
   })
-
-  if (!response.ok) {
-    throw new Error(`Style-Bert-VITS2 API error: ${response.status} ${response.statusText}`)
-  }
-
-  return response.blob()
 }
 
 // Bert-VITS2 语音合成
-async function voiceBertVits2(
+function voiceBertVits2(
   text: string,
   vitsConfig: ReturnType<typeof useVitsConfigStore>
 ): Promise<Blob> {
@@ -51,20 +50,19 @@ async function voiceBertVits2(
   // formatApiUrl 已经包含 /voice/bert-vits2 路径
   const apiUrl = formatApiUrl(vitsConfig.baseURL, 'bert-vits2')
 
-  const response = await fetch(apiUrl, {
+  return fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)
+  }).then(async response => {
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Bert-VITS2 API error: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+    return response.blob()
   })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Bert-VITS2 API error: ${response.status} ${response.statusText} - ${errorText}`)
-  }
-
-  return response.blob()
 }
 
 // 主要的语音合成函数，根据引擎类型选择对应的实现

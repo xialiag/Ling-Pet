@@ -61,38 +61,38 @@
             <v-col cols="12" md="7">
               <v-text-field
                 v-model="vc.baseURL"
-                :label="vc.engineType === 'bert-vits2' ? 'VITS Simple API 服务器地址' : 'Style-Bert-VITS2 API 地址'"
+                :label="engineConfig.serverLabel"
                 variant="outlined"
                 density="compact"
                 class="mb-4"
                 :disabled="disabled"
-                :placeholder="vc.engineType === 'bert-vits2' ? '127.0.0.1:6006 或 your-server.com:6006' : '127.0.0.1:23456 或 http://127.0.0.1:23456'"
-                :hint="vc.engineType === 'bert-vits2' ? '输入VITS Simple API服务器地址，自动调用/voice/bert-vits2接口' : '支持多种格式：127.0.0.1:23456 或 http://127.0.0.1:23456'"
+                :placeholder="engineConfig.placeholder"
+                :hint="engineConfig.hint"
                 persistent-hint
               />
             </v-col>
             <v-col cols="12" md="5">
               <!-- Style-Bert-VITS2 音色ID -->
               <v-text-field
-                v-if="vc.engineType === 'style-bert-vits2'"
+                v-if="engineConfig.isStyleBertVits2"
                 v-model="vc.ident"
-                label="音色 ID"
+                :label="engineConfig.speakerLabel"
                 variant="outlined"
                 density="compact"
                 :disabled="disabled"
-                hint="ID 应与 onnx 模型一致，如：Murasame"
+                :hint="engineConfig.speakerHint"
                 persistent-hint
               />
               <!-- Bert-VITS2 说话人ID -->
               <v-text-field
                 v-else
                 v-model.number="vc.bv2SpeakerId"
-                label="说话人ID"
+                :label="engineConfig.speakerLabel"
                 variant="outlined"
                 density="compact"
                 type="number"
                 :disabled="disabled"
-                hint="数字ID，如：0, 1, 2..."
+                :hint="engineConfig.speakerHint"
                 persistent-hint
               />
             </v-col>
@@ -101,7 +101,7 @@
           <v-row class="align-center">
             <v-col cols="12" md="6">
               <v-switch
-                v-if="vc.engineType === 'style-bert-vits2'"
+                v-if="engineConfig.isStyleBertVits2"
                 v-model="vc.autoStartSbv2"
                 color="secondary"
                 :disabled="disabled"
@@ -114,7 +114,7 @@
             </v-col>
             <v-col cols="12" md="6">
               <v-btn
-                v-if="vc.engineType === 'style-bert-vits2'"
+                v-if="engineConfig.isStyleBertVits2"
                 color="secondary"
                 variant="tonal"
                 @click="startSbv2Api"
@@ -154,7 +154,7 @@
           <h3 class="text-subtitle-1 font-weight-medium mb-3">语音参数</h3>
           
           <!-- Style-Bert-VITS2 参数 -->
-          <template v-if="vc.engineType === 'style-bert-vits2'">
+          <template v-if="engineConfig.isStyleBertVits2">
             <v-row>
               <v-col cols="12" md="6">
                 <div class="d-flex justify-space-between align-center mb-1">
@@ -280,11 +280,7 @@
                   label="语言"
                   variant="outlined"
                   density="compact"
-                  :items="[
-                    { title: '中文', value: 'zh' },
-                    { title: '英文', value: 'en' },
-                    { title: '日文', value: 'ja' }
-                  ]"
+                  :items="LANGUAGE_OPTIONS"
                   :disabled="disabled"
                   hint="选择生成语音的语言"
                   persistent-hint
@@ -309,16 +305,41 @@ import { probeBv2 } from '../../services/chatAndVoice/bv2Process';
 import { startSbv2 } from '../../services/chatAndVoice/sbv2Process';
 import VitsInstaller from './VitsInstaller.vue';
 
+// 常量定义
+const ENGINE_TYPES = {
+  STYLE_BERT_VITS2: 'style-bert-vits2',
+  BERT_VITS2: 'bert-vits2'
+} as const;
+
+const LANGUAGE_OPTIONS = [
+  { title: '中文', value: 'zh' },
+  { title: '英文', value: 'en' },
+  { title: '日文', value: 'ja' }
+] as const;
+
 // 测试相关
 const testResult = ref<{ success: boolean; message: string } | null>(null);
 const isTesting = ref(false);
 const starting = ref(false);
 
 const vc = useVitsConfigStore();
-// 使用 plugin-shell，无需事件总线
 
 // 统一禁用态
-const disabled = computed(() => !vc.on)
+const disabled = computed(() => !vc.on);
+
+// 计算属性：引擎类型相关配置
+const engineConfig = computed(() => {
+  const isBertVits2 = vc.engineType === ENGINE_TYPES.BERT_VITS2;
+  return {
+    isBertVits2,
+    isStyleBertVits2: !isBertVits2,
+    serverLabel: isBertVits2 ? 'VITS Simple API 服务器地址' : 'Style-Bert-VITS2 API 地址',
+    placeholder: isBertVits2 ? '127.0.0.1:6006 或 your-server.com:6006' : '127.0.0.1:23456 或 http://127.0.0.1:23456',
+    hint: isBertVits2 ? '输入VITS Simple API服务器地址，自动调用/voice/bert-vits2接口' : '支持多种格式：127.0.0.1:23456 或 http://127.0.0.1:23456',
+    speakerLabel: isBertVits2 ? '说话人ID' : '音色 ID',
+    speakerHint: isBertVits2 ? '数字ID，如：0, 1, 2...' : 'ID 应与 onnx 模型一致，如：Murasame'
+  };
+});
 
 // 测试连接
 async function testConnection() {
@@ -327,7 +348,7 @@ async function testConnection() {
 
   try {
     // 根据引擎类型选择不同的测试方法
-    if (vc.engineType === 'bert-vits2') {
+    if (engineConfig.value.isBertVits2) {
       await probeBv2();
     } else {
       await probeSbv2();
@@ -335,7 +356,7 @@ async function testConnection() {
 
     testResult.value = {
       success: true,
-      message: `${vc.engineType === 'bert-vits2' ? 'Bert-VITS2' : 'Style-Bert-VITS2'}服务连接成功！`
+      message: `${engineConfig.value.isBertVits2 ? 'Bert-VITS2' : 'Style-Bert-VITS2'}服务连接成功！`
     };
   } catch (error) {
     console.error('测试连接失败:', error);
