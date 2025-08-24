@@ -44,7 +44,6 @@
           <div class="mb-6">
             <div class="d-flex justify-space-between align-center mb-3">
               <div class="d-flex align-center gap-2">
-                <v-icon size="20" color="primary">mdi-format-opacity</v-icon>
                 <v-label>聊天气泡透明模式</v-label>
               </div>
               <v-switch
@@ -55,16 +54,13 @@
               />
             </div>
             <div class="text-caption text-medium-emphasis mb-3">
-              开启后气泡背景将变为透明，与桌面背景融合，提供更加简洁的视觉体验
+              开启后气泡背景将变为透明
             </div>
             
             <!-- 边框显示选项（仅在透明模式下显示） -->
             <div v-if="ac.bubbleTransparent" class="ml-4">
               <div class="d-flex justify-space-between align-center mb-2">
-                <div class="d-flex align-center gap-2">
-                  <v-icon size="16" color="secondary">mdi-border-outside</v-icon>
-                  <v-label class="text-body-2">显示边框</v-label>
-                </div>
+                <v-label class="text-body-2">显示边框</v-label>
                 <v-switch
                   v-model="ac.bubbleShowBorder"
                   color="secondary"
