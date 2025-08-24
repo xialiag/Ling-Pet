@@ -299,18 +299,14 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useVitsConfigStore } from '../../stores/configs/vitsConfig';
+import { useVitsConfigStore, ENGINE_TYPES } from '../../stores/configs/vitsConfig';
 import { probeSbv2 } from '../../services/chatAndVoice/sbv2Process';
 import { probeBv2 } from '../../services/chatAndVoice/bv2Process';
 import { startSbv2 } from '../../services/chatAndVoice/sbv2Process';
 import VitsInstaller from './VitsInstaller.vue';
 
 // 常量定义
-const ENGINE_TYPES = {
-  STYLE_BERT_VITS2: 'style-bert-vits2',
-  BERT_VITS2: 'bert-vits2'
-} as const;
-
+// 使用共享的引擎类型常量
 const LANGUAGE_OPTIONS = [
   { title: '中文', value: 'zh' },
   { title: '英文', value: 'en' },

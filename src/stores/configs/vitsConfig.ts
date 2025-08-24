@@ -1,11 +1,62 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+// 引擎类型常量定义
+export const ENGINE_TYPES = {
+  STYLE_BERT_VITS2: 'style-bert-vits2',
+  BERT_VITS2: 'bert-vits2'
+} as const
+
+export type EngineType = typeof ENGINE_TYPES[keyof typeof ENGINE_TYPES]
+
+/**
+ * 统一的 HTTP 响应错误处理
+ * 提供一致的错误格式和处理逻辑
+ */
+export async function handleApiError(
+  response: Response,
+  apiName: string
+): Promise<never> {
+  const errorText = await response.text().catch(() => '无法读取错误信息')
+  throw new Error(`${apiName} API 错误: ${response.status} ${response.statusText} - ${errorText}`)
+}
+
+/**
+ * 统一的网络连接错误处理
+ */
+export function handleConnectionError(error: unknown, apiUrl: string, apiName: string): never {
+  if (error instanceof TypeError && error.message.includes('fetch')) {
+    throw new Error(`无法连接到${apiName}服务: ${apiUrl}`)
+  }
+  throw error
+}
+
+/**
+ * 构建 BertVits2 API 请求参数
+ * 统一处理 BertVits2 相关的参数构建，避免重复代码
+ */
+export function createBv2Payload(
+  text: string,
+  vitsConfig: ReturnType<typeof useVitsConfigStore>
+): Record<string, any> {
+  return {
+    id: vitsConfig.bv2SpeakerId,
+    format: vitsConfig.bv2AudioFormat,
+    lang: vitsConfig.bv2Lang,
+    length: vitsConfig.bv2Length,
+    noise: vitsConfig.bv2Noise,
+    noisew: vitsConfig.bv2Noisew,
+    segment_size: vitsConfig.bv2SegmentSize,
+    sdp_ratio: vitsConfig.bv2SdpRatio,
+    text
+  }
+}
+
 /**
  * 格式化URL，确保包含协议和正确的API路径
  * 智能处理各种URL格式，有无http前缀都能正常工作
  */
-export function formatApiUrl(url: string, engineType: 'style-bert-vits2' | 'bert-vits2' = 'style-bert-vits2'): string {
+export function formatApiUrl(url: string, engineType: EngineType = ENGINE_TYPES.STYLE_BERT_VITS2): string {
   if (!url) return ''
   
   let cleanUrl = url.trim()
@@ -13,10 +64,10 @@ export function formatApiUrl(url: string, engineType: 'style-bert-vits2' | 'bert
   // 如果已经包含协议，直接使用
   if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
     // 检查是否已经包含API路径，如果没有则添加
-    if (engineType === 'bert-vits2' && !cleanUrl.includes('/voice/bert-vits2')) {
+    if (engineType === ENGINE_TYPES.BERT_VITS2 && !cleanUrl.includes('/voice/bert-vits2')) {
       return cleanUrl.replace(/\/$/, '') + '/voice/bert-vits2'
     }
-    if (engineType === 'style-bert-vits2' && !cleanUrl.includes('/synthesize')) {
+    if (engineType === ENGINE_TYPES.STYLE_BERT_VITS2 && !cleanUrl.includes('/synthesize')) {
       return cleanUrl.replace(/\/$/, '') + '/synthesize'
     }
     return cleanUrl
@@ -28,14 +79,14 @@ export function formatApiUrl(url: string, engineType: 'style-bert-vits2' | 'bert
   // 确保格式正确（处理可能缺少端口的情况）
   if (cleanUrl && !cleanUrl.includes(':')) {
     // 如果没有端口，根据引擎类型添加默认端口
-    const defaultPort = engineType === 'bert-vits2' ? '6006' : '23456'
+    const defaultPort = engineType === ENGINE_TYPES.BERT_VITS2 ? '6006' : '23456'
     cleanUrl = `${cleanUrl}:${defaultPort}`
   }
   
   // 添加http协议前缀和对应的API路径
   const baseUrl = `http://${cleanUrl}`
   
-  if (engineType === 'bert-vits2') {
+  if (engineType === ENGINE_TYPES.BERT_VITS2) {
     return baseUrl + '/voice/bert-vits2'
   } else {
     return baseUrl + '/synthesize'
@@ -55,7 +106,7 @@ export const useVitsConfigStore = defineStore(
     const sbv2Pid = ref<number | null>(null) // 跨窗口持久化 PID
     
     // 引擎类型选择
-    const engineType = ref<'style-bert-vits2' | 'bert-vits2'>('style-bert-vits2')
+    const engineType = ref<EngineType>(ENGINE_TYPES.STYLE_BERT_VITS2)
     
     // Bert-VITS2 专用配置
     const bv2SpeakerId = ref(0) // Bert-VITS2 说话人ID

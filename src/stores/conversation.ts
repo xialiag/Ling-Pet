@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { PetResponseItem, PetResponseItemWithAudio } from '../types/ai'
 import { usePetStateStore } from './petState'
-import { useVitsConfigStore } from './configs/vitsConfig'
+import { useVitsConfigStore, ENGINE_TYPES } from './configs/vitsConfig'
 import { useAIConfigStore } from './configs/aiConfig'
 import { getDefaultEmotionCode } from '../constants/emotions'
 import { voiceVits } from '../services/chatAndVoice/vitsService'
@@ -94,7 +94,7 @@ export const useConversationStore = defineStore('conversation', () => {
       try {
         // 根据引擎类型和语言设置选择要生成语音的文本
         let textForVoice: string
-        if (vitsConfig.engineType === 'bert-vits2') {
+        if (vitsConfig.engineType === ENGINE_TYPES.BERT_VITS2) {
           // Bert-VITS2: 根据bv2Lang配置选择文本
           switch (vitsConfig.bv2Lang) {
             case 'zh':

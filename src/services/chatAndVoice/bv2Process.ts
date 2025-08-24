@@ -1,4 +1,4 @@
-import { useVitsConfigStore, formatApiUrl } from '../../stores/configs/vitsConfig'
+import { useVitsConfigStore, formatApiUrl, createBv2Payload, handleApiError, handleConnectionError, ENGINE_TYPES } from '../../stores/configs/vitsConfig'
 import { fetch } from '@tauri-apps/plugin-http'
 
 /**
@@ -13,20 +13,10 @@ export async function probeBv2(): Promise<void> {
   }
 
   // 格式化URL，自动添加 /voice/bert-vits2 路径
-  const apiUrl = formatApiUrl(vitsConfig.baseURL, 'bert-vits2')
+  const apiUrl = formatApiUrl(vitsConfig.baseURL, ENGINE_TYPES.BERT_VITS2)
 
-  // 使用短文本进行测试
-  const testPayload = {
-    id: vitsConfig.bv2SpeakerId,
-    format: vitsConfig.bv2AudioFormat,
-    lang: vitsConfig.bv2Lang,
-    length: vitsConfig.bv2Length,
-    noise: vitsConfig.bv2Noise,
-    noisew: vitsConfig.bv2Noisew,
-    segment_size: vitsConfig.bv2SegmentSize,
-    sdp_ratio: vitsConfig.bv2SdpRatio,
-    text: '测试'
-  }
+  // 使用提取的公共函数构建测试参数
+  const testPayload = createBv2Payload('测试', vitsConfig)
 
   try {
     const response = await fetch(apiUrl, {
@@ -38,8 +28,7 @@ export async function probeBv2(): Promise<void> {
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`VITS Simple API服务响应错误: ${response.status} ${response.statusText} - ${errorText}`)
+      await handleApiError(response, 'VITS Simple API')
     }
 
     // 检查返回的内容类型
@@ -48,9 +37,6 @@ export async function probeBv2(): Promise<void> {
       console.warn('VITS Simple API服务返回的内容类型不是音频，但状态码正常')
     }
   } catch (error) {
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error(`无法连接到VITS Simple API服务: ${apiUrl}`)
-    }
-    throw error
+    handleConnectionError(error, apiUrl, 'VITS Simple API')
   }
 }

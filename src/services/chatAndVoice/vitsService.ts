@@ -1,4 +1,4 @@
-import { useVitsConfigStore, formatApiUrl } from '../../stores/configs/vitsConfig'
+import { useVitsConfigStore, formatApiUrl, createBv2Payload, handleApiError, ENGINE_TYPES } from '../../stores/configs/vitsConfig'
 import { fetch } from '@tauri-apps/plugin-http'
 
 // Style-Bert-VITS2 语音合成
@@ -14,7 +14,7 @@ function voiceStyleBertVits2(
   }
 
   // formatApiUrl 已经包含 /synthesize 路径
-  const apiUrl = formatApiUrl(vitsConfig.baseURL, 'style-bert-vits2')
+  const apiUrl = formatApiUrl(vitsConfig.baseURL, ENGINE_TYPES.STYLE_BERT_VITS2)
 
   return fetch(apiUrl, {
     method: 'POST',
@@ -22,9 +22,9 @@ function voiceStyleBertVits2(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
-  }).then(response => {
+  }).then(async response => {
     if (!response.ok) {
-      throw new Error(`Style-Bert-VITS2 API error: ${response.status} ${response.statusText}`)
+      await handleApiError(response, 'Style-Bert-VITS2')
     }
     return response.blob()
   })
@@ -35,20 +35,11 @@ function voiceBertVits2(
   text: string,
   vitsConfig: ReturnType<typeof useVitsConfigStore>
 ): Promise<Blob> {
-  const payload = {
-    id: vitsConfig.bv2SpeakerId,
-    format: vitsConfig.bv2AudioFormat,
-    lang: vitsConfig.bv2Lang,
-    length: vitsConfig.bv2Length, // 语速
-    noise: vitsConfig.bv2Noise, // 采样噪声比例
-    noisew: vitsConfig.bv2Noisew, // SDP噪声
-    segment_size: vitsConfig.bv2SegmentSize, // 分段阈值
-    sdp_ratio: vitsConfig.bv2SdpRatio, // SDP/DP混合比
-    text: text
-  }
+  // 使用提取的公共函数构建参数
+  const payload = createBv2Payload(text, vitsConfig)
 
   // formatApiUrl 已经包含 /voice/bert-vits2 路径
-  const apiUrl = formatApiUrl(vitsConfig.baseURL, 'bert-vits2')
+  const apiUrl = formatApiUrl(vitsConfig.baseURL, ENGINE_TYPES.BERT_VITS2)
 
   return fetch(apiUrl, {
     method: 'POST',
@@ -58,8 +49,7 @@ function voiceBertVits2(
     body: JSON.stringify(payload)
   }).then(async response => {
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Bert-VITS2 API error: ${response.status} ${response.statusText} - ${errorText}`)
+      await handleApiError(response, 'Bert-VITS2')
     }
     return response.blob()
   })
@@ -71,7 +61,7 @@ export async function voiceVits(
 ): Promise<Blob> {
   const vitsConfig = useVitsConfigStore()
 
-  if (vitsConfig.engineType === 'bert-vits2') {
+  if (vitsConfig.engineType === ENGINE_TYPES.BERT_VITS2) {
     return voiceBertVits2(text, vitsConfig)
   } else {
     return voiceStyleBertVits2(text, vitsConfig)
