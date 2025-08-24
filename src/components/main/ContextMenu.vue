@@ -20,7 +20,7 @@
       <div v-if="showDevTools" class="menu-divider"></div>
       <div v-if="showDevTools" class="menu-item" @click="toggleDevTools">
         <v-icon :size="iconSize" class="menu-icon">mdi-bug-outline</v-icon>
-        <span class="menu-text">{{ showDevTools ? '关闭开发者工具' : '开启开发者工具' }}</span>
+        <span class="menu-text">关闭开发者工具</span>
       </div>
     </div>
     
@@ -100,40 +100,13 @@ const isVisible = ref(false)
 const menuPosition = ref({ x: 0, y: 0 })
 const menuRef = ref<HTMLElement>()
 
-// 根据桌宠大小计算菜单尺寸
-const menuDimensions = computed(() => {
-  // 基础尺寸：桌宠大小的 80%，但至少 120px，最多 200px
-  const baseWidth = Math.max(120, Math.min(200, ac.petSize * 0.8))
-  
-  // 动态计算高度：根据菜单项数量调整
-  const baseItemCount = 2 // 基础项目：设置、聊天记录
-  const devToolsItems = showDevTools.value ? 1 : 0 // 开发者工具项
-  const totalItems = baseItemCount + devToolsItems
-  const dividerCount = showDevTools.value ? 2 : 1 // 分割线数量
-  
-  // 每个菜单项约 32px，分割线约 9px，padding 8px
-  const itemHeight = 32 * (ac.petSize / 200) // 根据桌宠大小缩放
-  const dividerHeight = 9
-  const padding = 8
-  const calculatedHeight = (totalItems * itemHeight) + (dividerCount * dividerHeight) + (padding * 2)
-  
-  // 设置最小和最大高度
-  const minHeight = 80
-  const maxHeight = 200
-  const baseHeight = Math.max(minHeight, Math.min(maxHeight, calculatedHeight))
-  
-  return {
-    width: baseWidth,
-    height: baseHeight
-  }
-})
-
-// 根据桌宠大小计算字体和图标尺寸
-const scaleFactors = computed(() => {
+// 根据桌宠大小计算缩放因子和相关尺寸
+const uiScale = computed(() => {
   // 根据桌宠大小计算缩放因子，范围在 0.7 到 1.2 之间
   const scale = Math.max(0.7, Math.min(1.2, ac.petSize / 200))
   
   return {
+    scale,
     fontSize: Math.round(13 * scale),
     iconSize: Math.round(16 * scale),
     padding: Math.round(8 * scale),
@@ -141,17 +114,27 @@ const scaleFactors = computed(() => {
   }
 })
 
+// 根据桌宠大小计算菜单尺寸
+const menuDimensions = computed(() => {
+  // 基础尺寸：桌宠大小的 80%，但至少 120px，最多 200px
+  const baseWidth = Math.max(120, Math.min(200, ac.petSize * 0.8))
+  
+  return {
+    width: baseWidth
+  }
+})
+
 // 计算图标尺寸
-const iconSize = computed(() => scaleFactors.value.iconSize)
+const iconSize = computed(() => uiScale.value.iconSize)
 
 // 计算菜单位置样式
 const menuStyle = computed(() => ({
   left: `${menuPosition.value.x}px`,
   top: `${menuPosition.value.y}px`,
   minWidth: `${menuDimensions.value.width}px`,
-  fontSize: `${scaleFactors.value.fontSize}px`,
-  borderRadius: `${scaleFactors.value.borderRadius}px`,
-  '--menu-padding': `${scaleFactors.value.padding}px`,
+  fontSize: `${uiScale.value.fontSize}px`,
+  borderRadius: `${uiScale.value.borderRadius}px`,
+  '--menu-padding': `${uiScale.value.padding}px`,
 }))
 
 // 显示菜单

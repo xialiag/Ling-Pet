@@ -19,7 +19,6 @@ import { useMemoryStore } from '../stores/memory.ts';
 import { useHypothesesStore } from '../stores/hypotheses.ts';
 import { useScheduleStore } from '../stores/schedule.ts';
 
-const avatarRef = ref();
 const contextMenuRef = ref();
 const ac = useAppearanceConfigStore();
 const window = getCurrentWebviewWindow();
@@ -76,7 +75,7 @@ async function setWindowToSquare() {
 
 // 处理右键菜单事件
 function handleContextMenu(event: MouseEvent) {
-  const isDevToolsEnabled = (ac as any).showDevTools;
+  const isDevToolsEnabled = ac.showDevTools ?? false;
   
   // 如果开发者工具开启，显示自定义菜单但不阻止默认右键菜单
   if (isDevToolsEnabled) {
@@ -110,11 +109,11 @@ async function startPetSizeWatching() {
        :style="{ opacity: ac.opacity }" 
        @wheel.prevent
        @contextmenu="handleContextMenu"
-       @selectstart.prevent="!(ac as any).showDevTools"
-       @dragstart.prevent="!(ac as any).showDevTools"> <!-- 防止滚轮事件导致滚动，自定义右键菜单处理 -->
+       @selectstart.prevent="!(ac.showDevTools ?? false)"
+       @dragstart.prevent="!(ac.showDevTools ?? false)"> <!-- 防止滚轮事件导致滚动，自定义右键菜单处理 -->
     <!-- 装饰组件调度 -->
     <DecorationsHost />
-    <Avatar ref="avatarRef" />
+    <Avatar />
     <Input class="input" />
     
     <!-- 自定义右键菜单 -->
