@@ -106,7 +106,11 @@ const menuStyle = computed(() => {
     iconSize: Math.round(14 * scale),
     padding: Math.round(6 * scale),
     borderRadius: Math.round(6 * scale),
-    width: baseWidth
+    width: baseWidth,
+    // 新增：菜单项高度缩放
+    itemHeight: Math.round(32 * scale), // 基础高度32px
+    // 新增：分割线边距缩放
+    dividerMargin: Math.round(4 * scale)
   }
 })
 
@@ -121,6 +125,8 @@ const menuPositionStyle = computed(() => ({
   fontSize: `${menuStyle.value.fontSize}px`,
   borderRadius: `${menuStyle.value.borderRadius}px`,
   '--menu-padding': `${menuStyle.value.padding}px`,
+  '--menu-item-height': `${menuStyle.value.itemHeight}px`,
+  '--menu-divider-margin': `${menuStyle.value.dividerMargin}px`,
 }))
 
 // 显示菜单
@@ -226,7 +232,8 @@ defineExpose({
   transition: all 0.15s ease;
   color: #333;
   white-space: nowrap;
-  min-height: calc(var(--menu-padding, 6px) * 3);
+  height: var(--menu-item-height, 32px);
+  min-height: var(--menu-item-height, 32px);
 }
 
 .menu-item:hover {
@@ -248,7 +255,7 @@ defineExpose({
 .menu-divider {
   height: 1px;
   background: rgba(0, 0, 0, 0.1);
-  margin: 2px calc(var(--menu-padding, 6px) * 0.8);
+  margin: var(--menu-divider-margin, 4px) calc(var(--menu-padding, 6px) * 0.8);
 }
 
 .context-menu-overlay {
