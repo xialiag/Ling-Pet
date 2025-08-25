@@ -4,9 +4,8 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import Avatar from '../components/main/Avatar.vue';
 import Input from '../components/main/Input.vue';
-import SettingButton from '../components/main/SettingButton.vue';
-import ChatHistoryButton from '../components/main/ChatHistoryButton.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
+import ContextMenu from '../components/main/ContextMenu.vue';
 import { useAppearanceConfigStore } from '../stores/configs/appearanceConfig';
 import { windowListMaintainer } from '../services/screenAnalysis/windowListMaintainer';
 import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManager';
@@ -20,7 +19,7 @@ import { useMemoryStore } from '../stores/memory.ts';
 import { useHypothesesStore } from '../stores/hypotheses.ts';
 import { useScheduleStore } from '../stores/schedule.ts';
 
-const avatarRef = ref();
+const contextMenuRef = ref();
 const ac = useAppearanceConfigStore();
 const window = getCurrentWebviewWindow();
 const { startWindowListMaintaining, stopWindowListMaintaining } = windowListMaintainer();
@@ -74,6 +73,20 @@ async function setWindowToSquare() {
   window.setSize(new LogicalSize(ac.petSize, ac.petSize + 30));
 }
 
+// 处理右键菜单事件
+function handleContextMenu(event: MouseEvent) {
+  const isDevToolsEnabled = ac.showDevTools ?? false;
+  
+  // 显示自定义右键菜单
+  contextMenuRef.value?.showMenu(event);
+  
+  // 如果开发者工具未开启，阻止默认右键菜单
+  if (!isDevToolsEnabled) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+}
+
 async function startPetSizeWatching() {
   await setWindowToSquare();
   if (!stopPetSizeWatcher) {
@@ -86,13 +99,19 @@ async function startPetSizeWatching() {
 </script>
 
 <template>
-  <div class="main-wrapper" :style="{ opacity: ac.opacity }" @wheel.prevent> <!-- 防止滚轮事件导致滚动 -->
+  <div class="main-wrapper" 
+       :style="{ opacity: ac.opacity }" 
+       @wheel.prevent
+       @contextmenu="handleContextMenu"
+       @selectstart.prevent="!(ac.showDevTools ?? false)"
+       @dragstart.prevent="!(ac.showDevTools ?? false)"> <!-- 防止滚轮事件导致滚动，自定义右键菜单处理 -->
     <!-- 装饰组件调度 -->
     <DecorationsHost />
-    <ChatHistoryButton class="button" />
-    <Avatar ref="avatarRef" />
-    <SettingButton class="button" />
+    <Avatar />
     <Input class="input" />
+    
+    <!-- 自定义右键菜单 -->
+    <ContextMenu ref="contextMenuRef" />
   </div>
 </template>
 
