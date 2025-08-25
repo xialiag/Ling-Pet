@@ -1,15 +1,8 @@
 import { createHandlerManager } from './handlerManager';
-import { screenAnalysisPluginHandlers } from '../../plugins/screenAnalysis';
-import { interactionPluginHandlers } from '../../plugins/interactions';
-import { schedulePluginHandlers } from '../../plugins/schedule';
+import { allHandlerDescriptors } from './handlers';
 
-// Aggregate descriptors from multiple feature areas (plugins)
+// Aggregate descriptors from flat per-file handlers
 export function createGlobalHandlersManager() {
-  const descriptors = [
-    ...screenAnalysisPluginHandlers(),
-    ...interactionPluginHandlers(),
-    ...schedulePluginHandlers(),
-  ];
-
+  const descriptors = allHandlerDescriptors();
   return createHandlerManager(descriptors);
 }
