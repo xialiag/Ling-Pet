@@ -1,9 +1,9 @@
 import { ScreenshotableWindow } from "tauri-plugin-screenshots-api";
-import { describeScreens } from "../../services/screenAnalysis/screenDescription";
-import { useAIConfigStore } from "../../stores/configs/aiConfig";
-import { chatWithPetStream } from "../../services/chatAndVoice/chatWithPet";
-import { useConversationStore } from "../../stores/conversation";
-import { usePetStateStore } from "../../stores/petState";
+import { describeScreens } from "../../screenAnalysis/screenDescription";
+import { useAIConfigStore } from "../../../stores/configs/aiConfig";
+import { chatWithPetStream } from "../../chatAndVoice/chatWithPet";
+import { useConversationStore } from "../../../stores/conversation";
+import { usePetStateStore } from "../../../stores/petState";
 
 const aiConfig = useAIConfigStore();
 const petState = usePetStateStore();
@@ -15,12 +15,11 @@ const USERPROMPT =
 {screenContent};
 </screen-content>
 你要对他说些什么呢？
-`
+`;
 
 export async function handleNewWindows(newWindows: ScreenshotableWindow[]) {
   if (!Array.isArray(newWindows) || newWindows.length !== 1) return;
 
-  // Basic guards
   if (!aiConfig.apiKey || !aiConfig.baseURL || !aiConfig.model) {
     console.warn("AI服务配置不完整，无法进行屏幕分析");
     return;
@@ -30,7 +29,6 @@ export async function handleNewWindows(newWindows: ScreenshotableWindow[]) {
     return;
   }
   if (Date.now() - petState.lastClickTimestamp < 10000) {
-    // 与之前逻辑保持一致：最近10秒有交互则跳过
     return;
   }
 
@@ -39,3 +37,4 @@ export async function handleNewWindows(newWindows: ScreenshotableWindow[]) {
     USERPROMPT.replace('{screenContent}', analysisResult)
   );
 }
+

@@ -8,7 +8,7 @@
 - 发送集中出口：通过领域 Emitters 发送事件，组件不直接发事件。
 - 全量强类型：所有事件名与负载在一个注册表中声明并校验。
 - 支持阻塞：可选“阻塞”监听，避免异步处理重叠。
-- 可插拔：以插件化方式扩展功能与处理器。
+- 扁平注册：取消插件系统，每个文件就是一个功能处理器。
 
 ## 关键文件
 
@@ -27,13 +27,15 @@
   - 打印处理器生命周期日志：启动/停止/失败。
 
 - `globalHandlers.ts`
-  - 汇总各插件提供的处理器描述，并交给管理器统一管理。
+  - 汇总 `handlers/index.ts` 导出的处理器描述，并交给管理器统一管理。
 
-## 插件（Plugins）
+## 处理器结构（Handlers）
 
-- 每个插件暴露一个返回 `HandlerDescriptor[]` 的方法：`src/plugins/<feature>/index.ts`。
-  - 屏幕分析示例：`src/plugins/screenAnalysis/index.ts`（监听 `NEW_WINDOWS`）。
-  - 交互示例：`src/plugins/interactions/index.ts`（监听 `AVATAR_MULTI_CLICK`）。
+- 每个功能一个文件，位于 `src/services/events/handlers/`。
+  - 屏幕分析：`onNewWindows.ts`（监听 `NEW_WINDOWS`）。
+  - 交互：`onAvatarMultiClick.ts`（监听 `AVATAR_MULTI_CLICK`）。
+  - 调度：`onScheduleIdle.ts`（监听 `SCHEDULE_IDLE`）。
+- 在 `handlers/index.ts` 中集中注册，导出 `allHandlerDescriptors()`。
 
 ## 约定与规则
 
@@ -49,13 +51,13 @@
 2) 在 `emitters.ts` 中新增一个发送函数：
    - `export function emitMyEvent(payload: EventPayloadMap['MY_EVENT']) { return emitEvent('MY_EVENT', payload); }`
 
-3) 在你的功能/插件目录中实现处理器（纯函数）：
-   - 例：`src/plugins/myFeature/handlers.ts` → `export async function handleMyEvent(payload) { ... }`
+3) 在 `src/services/events/handlers/` 下新增处理器文件并实现函数：
+   - 例：`src/services/events/handlers/onMyEvent.ts` → `export async function handleMyEvent(payload) { ... }`
 
-4) 在插件文件中注册处理器，返回 `HandlerDescriptor[]`：
-   - `{ key: 'myFeature:my-event', event: 'MY_EVENT', blocking: true|false, isEnabled: () => store.flag, handle: handleMyEvent }`
+4) 在 `handlers/index.ts` 中注册：
+   - `{ key: 'feature:my-event', event: 'MY_EVENT', blocking: true|false, isEnabled: () => store.flag, handle: handleMyEvent }`
 
-5) 在 `globalHandlers.ts` 汇总你的插件（import 并展开到数组中）。
+5) `globalHandlers.ts` 会通过 `allHandlerDescriptors()` 统一挂载。
 
 ## 阻塞语义（blocking）
 
