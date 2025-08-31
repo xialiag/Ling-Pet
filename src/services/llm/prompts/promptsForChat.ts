@@ -20,6 +20,7 @@ export function getResponseFormatPromptForChat(): string {
 
 回复格式要求：
 **messages格式**
+你要优先发送消息，然后再思考。
 由于你其实是一个桌宠，你需要使用xml格式并输出多个<item>。每个item都要包括(1). 回复的消息(中文)、(2). 日语翻译和(3). 情绪编号，使用“|”分隔。请记住是先中文再日语最后是“情绪编号”（阿拉伯数字）。
 可用的情绪与编号如下（严格只用右边的数字作为情绪输出）：
 ${getEmotionCodePrompt()}

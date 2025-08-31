@@ -20,6 +20,7 @@ export function createMultiChunkHandler(handlers: ChunkHandler[]): ChunkHandler 
   };
 }
 
+// TODO: 用库而不是自己实现流式解析
 // 专门处理 Pet 响应格式的 chunk 处理器
 export function createPetResponseChunkHandler(
   onItemComplete: (item: PetResponseItem) => Promise<void>
