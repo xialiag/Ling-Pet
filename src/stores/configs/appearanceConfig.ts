@@ -16,6 +16,9 @@ export const useAppearanceConfigStore = defineStore(
     // 开发者工具设置
     const showDevTools = ref(false) // 显示开发者工具选项
     
+    // 固定桌宠设置
+    const isPetFixed = ref(false) // 是否启用固定桌宠功能
+    
     // Avatar类型: 'image' | 'live2d'
     const avatarType = ref<'image' | 'live2d'>('image')
     
@@ -53,6 +56,9 @@ export const useAppearanceConfigStore = defineStore(
       
       // 开发者工具
       showDevTools,
+      
+      // 固定桌宠
+      isPetFixed,
       
       // Avatar和装饰设置
       avatarType,

@@ -18,6 +18,7 @@ import { registerDefaultTools } from '../services/tools/index.ts';
 import { startNoInteractionWatcher, stopNoInteractionWatcher } from '../services/interactions/noInteractionWatcher';
 import { useMemoryStore } from '../stores/memory.ts';
 import { useHypothesesStore } from '../stores/hypotheses.ts';
+import { getPetFixManager } from '../services/petFixManager';
 import { useScheduleStore } from '../stores/schedule.ts';
 
 const contextMenuRef = ref();
@@ -27,6 +28,7 @@ const { startWindowListMaintaining, stopWindowListMaintaining } = windowListMain
 const { startChatBubbleWatching, stopChatBubbleWatching } = chatBubbleManager();
 const globalHandlersManager = createGlobalHandlersManager();
 const vitsConfig = useVitsConfigStore();
+const petFixManager = getPetFixManager();
 
 // 监听Avatar类型变化
 watch(() => ac.avatarType, (newType) => {
@@ -34,6 +36,23 @@ watch(() => ac.avatarType, (newType) => {
   if (newType === 'live2d') {
     ac.decorationType = 'none';
     ac.live2dBorderType = 'none';
+  }
+});
+
+// 监听固定桌宠状态变化
+watch(() => ac.isPetFixed, async (isFixed) => {
+  try {
+    if (isFixed) {
+      console.log('启用固定桌宠功能');
+      await petFixManager.startPetFix();
+    } else {
+      console.log('禁用固定桌宠功能');
+      await petFixManager.stopPetFix();
+    }
+  } catch (error) {
+    console.error('切换固定桌宠状态失败:', error);
+    // 如果失败，重置状态
+    ac.isPetFixed = false;
   }
 });
 
@@ -77,12 +96,19 @@ onMounted(async () => {
   }
 });
 
-onUnmounted(() => {
+onUnmounted(async () => {
   stopPetSizeWatcher?.();
   stopChatBubbleWatching();
   globalHandlersManager.stop();
   stopWindowListMaintaining();
   stopNoInteractionWatcher();
+  
+  // 清理固定桌宠功能
+  try {
+    await petFixManager.destroy();
+  } catch (error) {
+    console.error('清理固定桌宠功能失败:', error);
+  }
 });
 
 let stopPetSizeWatcher: (() => void) | null = null;
@@ -103,6 +129,9 @@ async function setWindowToSquare() {
  */
 function handleContextMenu(event: MouseEvent) {
   const isDevToolsEnabled = ac.showDevTools ?? false;
+  
+  // 通知桌宠固定管理器菜单即将显示
+  petFixManager.setContextMenuVisible(true);
   
   // 显示自定义右键菜单
   contextMenuRef.value?.showMenu(event);
