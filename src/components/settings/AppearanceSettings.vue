@@ -42,6 +42,22 @@
           </div>
 
           <div class="mb-6">
+            <div class="d-flex justify-space-between align-center mb-1">
+              <v-label>Avatar类型</v-label>
+              <span class="text-primary font-weight-medium">{{ avatarTypeLabel }}</span>
+            </div>
+            <v-select
+              v-model="ac.avatarType"
+              :items="avatarTypeOptions"
+              item-title="label"
+              item-value="value"
+              density="comfortable"
+              variant="outlined"
+              hide-details
+            />
+          </div>
+
+          <div class="mb-6">
             <div class="d-flex justify-space-between align-center mb-3">
               <div class="d-flex align-center gap-2">
                 <v-label>聊天气泡透明模式</v-label>
@@ -152,6 +168,17 @@ const decorationOptions = [
 const decorationLabel = computed(() => {
   const found = decorationOptions.find(o => o.value === ac.decorationType);
   return found ? found.label : '无';
+});
+
+// Avatar类型选项
+const avatarTypeOptions = [
+  { label: '静态图片', value: 'image' },
+  { label: 'Live2D', value: 'live2d' },
+];
+
+const avatarTypeLabel = computed(() => {
+  const found = avatarTypeOptions.find(o => o.value === ac.avatarType);
+  return found ? found.label : '静态图片';
 });
 
 // Computed property to format the opacity value for display

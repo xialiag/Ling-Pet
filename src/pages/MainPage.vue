@@ -3,6 +3,7 @@ import { onMounted, ref, watchEffect, onUnmounted } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import Avatar from '../components/main/Avatar.vue';
+import Live2DAvatar from '../components/main/Live2DAvatar.vue';
 import Input from '../components/main/Input.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
 import ContextMenu from '../components/main/ContextMenu.vue';
@@ -107,7 +108,9 @@ async function startPetSizeWatching() {
        @dragstart.prevent="!(ac.showDevTools ?? false)"> <!-- 防止滚轮事件导致滚动，自定义右键菜单处理 -->
     <!-- 装饰组件调度 -->
     <DecorationsHost />
-    <Avatar />
+    <!-- 根据配置选择Avatar类型 -->
+    <Avatar v-if="ac.avatarType === 'image'" />
+    <Live2DAvatar v-else-if="ac.avatarType === 'live2d'" />
     <Input class="input" />
     
     <!-- 自定义右键菜单 -->
