@@ -43,11 +43,13 @@ watch(() => ac.avatarType, (newType) => {
 watch(() => ac.isPetFixed, async (isFixed) => {
   try {
     if (isFixed) {
-      console.log('启用固定桌宠功能');
-      await petFixManager.startPetFix();
+      console.log('启用固定桌宠功能 - 设置窗口透过');
+      // 不需要重新启动UIohook，只需要更新透过状态
+      // UIohook已经在onMounted中启动
     } else {
-      console.log('禁用固定桌宠功能');
-      await petFixManager.stopPetFix();
+      console.log('禁用固定桌宠功能 - 设置窗口不透过');
+      // 不停止UIohook，保持右键菜单功能
+      // 只需要确保窗口不透过
     }
   } catch (error) {
     console.error('切换固定桌宠状态失败:', error);
@@ -66,6 +68,14 @@ onMounted(async () => {
     startChatBubbleWatching();  // 监听聊天气泡状态以打开或关闭
     globalHandlersManager.start(); // 根据设置注册/管理全局事件处理
     startWindowListMaintaining();  // 实时更新当前窗口状态
+    
+    // 始终启动UIohook监听以支持右键菜单功能
+    try {
+      await petFixManager.startPetFix();
+      console.log('✅ UIohook监听启动成功，支持右键菜单功能');
+    } catch (error) {
+      console.error('⚠️ UIohook监听启动失败:', error);
+    }
     
     if (vitsConfig.autoStartSbv2) {
       startSbv2(vitsConfig.installPath);

@@ -64,13 +64,38 @@ export class UiohookPetManager {
    */
   private async restoreClickThroughAfterMenuClose(): Promise<void> {
     try {
-      // 等待一小段时间确保菜单完全关闭
-      setTimeout(async () => {
-        await this.setWindowClickThrough(true);
-        info('🔄 右键菜单关闭后，窗口恢复为透过状态');
-      }, 100);
+      // 检查是否为固定模式，只有在固定模式下才恢复透过
+      const isPetFixedMode = await this.checkIfPetFixedMode();
+      
+      if (isPetFixedMode) {
+        // 等待一小段时间确保菜单完全关闭
+        setTimeout(async () => {
+          await this.setWindowClickThrough(true);
+          info('🔄 右键菜单关闭后，窗口恢复为透过状态');
+        }, 100);
+      } else {
+        // 非固定模式，保持不透过状态
+        await this.setWindowClickThrough(false);
+        info('🔒 非固定模式：右键菜单关闭后，保持窗口不透过状态');
+      }
     } catch (err) {
       error(`恢复透过状态失败: ${String(err)}`);
+    }
+  }
+  
+  /**
+   * 检查是否为固定桌宠模式
+   */
+  private async checkIfPetFixedMode(): Promise<boolean> {
+    try {
+      // 检查全局状态或配置来判断是否处于固定模式
+      // 这里可以通过检查全局状态或调用相关API
+      const { useAppearanceConfigStore } = await import('../stores/configs/appearanceConfig');
+      const ac = useAppearanceConfigStore();
+      return ac.isPetFixed;
+    } catch (err) {
+      debug(`检查固定桌宠模式失败: ${String(err)}`);
+      return false; // 默认为非固定模式
     }
   }
 
@@ -89,9 +114,18 @@ export class UiohookPetManager {
       // 更新桌宠窗口边界信息
       await this.updatePetWindowBounds();
       
-      // 设置桌宠窗口为默认透过状态
-      await this.setWindowClickThrough(true);
-      info('🔄 桌宠窗口设置为默认透过状态');
+      // 检查是否是在固定桌宠模式下启动，只有在固定模式下才设置透过
+      const isPetFixedMode = await this.checkIfPetFixedMode();
+      
+      if (isPetFixedMode) {
+        // 设置桌宠窗口为默认透过状态（仅在固定模式下）
+        await this.setWindowClickThrough(true);
+        info('🔄 桌宠固定模式：窗口设置为默认透过状态');
+      } else {
+        // 非固定模式，确保窗口不透过
+        await this.setWindowClickThrough(false);
+        info('🔒 非固定模式：窗口设置为不透过状态');
+      }
 
       // 尝试启动UIohook监听
       try {
