@@ -35,12 +35,13 @@ struct MouseEventHandler {
 
 impl EventHandler for MouseEventHandler {
     fn handle_event(&self, event: &UiohookEvent) {
-        debug!("收到UIohook事件: {:?}", event);
+        info!("🎯 [EventHandler] 收到UIohook事件: {:?}", event);
         
         match event {
             UiohookEvent::Mouse(mouse_event) => {
-                debug!("处理鼠标事件");
+                info!("🖱️ [EventHandler] 鼠标事件匹配成功，调用handle_mouse_event");
                 self.handle_mouse_event(mouse_event);
+                info!("✅ [EventHandler] handle_mouse_event调用完成");
             }
             UiohookEvent::HookEnabled => {
                 info!("🔗 UIohook 监听已启用");
@@ -49,7 +50,7 @@ impl EventHandler for MouseEventHandler {
                 info!("🚫 UIohook 监听已禁用");
             }
             _ => {
-                debug!("忽略其他类型的UIohook事件: {:?}", event);
+                info!("📋 [EventHandler] 其他类型的UIohook事件: {:?}", event);
             }
         }
     }
@@ -58,17 +59,61 @@ impl EventHandler for MouseEventHandler {
 impl MouseEventHandler {
     fn handle_mouse_event(&self, mouse_event: &MouseEvent) {
         // 添加更详细的调试信息
-        debug!("收到鼠标事件: 类型={:?}, 按钮={:?}, 位置=({}, {})", 
+        info!("🔍 [handle_mouse_event] 进入方法: 类型={:?}, 按钮={:?}, 位置=({}, {})", 
                mouse_event.event_type, mouse_event.button, mouse_event.x, mouse_event.y);
         
+        // 处理鼠标移动事件用于预透过
+        if let MouseEventType::Moved = mouse_event.event_type {
+            let x = mouse_event.x as i32;
+            let y = mouse_event.y as i32;
+            
+            // 检查是否在桌宠窗口上方
+            let is_over_pet = {
+                if let Ok(bounds_guard) = self.pet_window_bounds.lock() {
+                    if let Some(bounds) = bounds_guard.as_ref() {
+                        let over = x >= bounds.x && x <= bounds.x + bounds.width &&
+                                  y >= bounds.y && y <= bounds.y + bounds.height;
+                        over
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            };
+            
+            // 预透过机制：鼠标在桌宠上时设置透过，不在时取消透过
+            let move_event = GlobalMouseEvent {
+                x,
+                y,
+                button: "move".to_string(),
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64,
+                is_over_pet,
+            };
+            
+            // 发送移动事件用于预透过处理
+            if let Err(_) = self.sender.send(move_event) {
+                // 静默失败，避免日志过多
+            }
+            
+            return; // 移动事件不需要后续处理
+        }
+        
         // 只处理鼠标按下事件
+        info!("⚡ [handle_mouse_event] 检查事件类型: {:?}", mouse_event.event_type);
         if let MouseEventType::Pressed = mouse_event.event_type {
+            info!("✅ [handle_mouse_event] 事件类型匹配: 鼠标按下事件");
             let button = match format!("{:?}", mouse_event.button).as_str() {
-                "Left" => "left",
-                "Right" => "right", 
+                "Button1" => "left",   // 左键
+                "Left" => "left",     // 兼容旧格式
+                "Button2" => "right",  // 右键  
+                "Right" => "right",   // 兼容旧格式
                 _ => {
-                    debug!("忽略未知按钮: {:?}", mouse_event.button);
-                    return; // 忽略其他按键
+                    info!("⏭️ [handle_mouse_event] 忽略非左右键: {:?}", mouse_event.button);
+                    return; // 只处理左右键
                 }
             };
 
@@ -83,7 +128,7 @@ impl MouseEventHandler {
                     if let Some(bounds) = bounds_guard.as_ref() {
                         let over = x >= bounds.x && x <= bounds.x + bounds.width &&
                                   y >= bounds.y && y <= bounds.y + bounds.height;
-                        debug!("桌宠边界检查: 鼠标({},{}) vs 边界({},{},{}x{}), 结果={}", 
+                        debug!("📐 桌宠边界检查: 鼠标({},{}) vs 边界({},{},{}x{}), 结果={}", 
                                x, y, bounds.x, bounds.y, bounds.width, bounds.height, over);
                         over
                     } else {
@@ -116,6 +161,9 @@ impl MouseEventHandler {
             if is_over_pet {
                 info!("🐱 桌宠区域内的{}被检测到！", 
                       if button == "left" { "左键点击" } else { "右键点击" });
+            } else {
+                debug!("🔍 桌宠区域外的{}，位置: ({}, {})", 
+                       if button == "left" { "左键点击" } else { "右键点击" }, x, y);
             }
 
             // 发送事件到主线程
@@ -125,7 +173,7 @@ impl MouseEventHandler {
                 debug!("全局鼠标事件已发送到处理队列");
             }
         } else {
-            debug!("忽略非按下事件: {:?}", mouse_event.event_type);
+            info!("⏭️ [handle_mouse_event] 忽略非按下事件: {:?}", mouse_event.event_type);
         }
     }
 }

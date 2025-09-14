@@ -12,7 +12,7 @@ import { debug, info, warn, error } from '@tauri-apps/plugin-log';
 export interface GlobalMouseEvent {
   x: number;
   y: number;
-  button: 'left' | 'right';
+  button: 'left' | 'right' | 'move';
   timestamp: number;
   is_over_pet: boolean;
 }
@@ -25,6 +25,53 @@ export class UiohookPetManager {
 
   constructor() {
     info('🚀 初始化UIohook桌宠管理器');
+    
+    // 监听右键菜单关闭事件，恢复透过状态
+    this.setupContextMenuListener();
+  }
+  
+  /**
+   * 设置右键菜单监听器
+   */
+  private setupContextMenuListener(): void {
+    // 监听右键菜单关闭事件
+    document.addEventListener('click', async (event) => {
+      // 如果点击在菜单外部，表示菜单关闭
+      const contextMenu = document.querySelector('.context-menu');
+      const isClickOutsideMenu = contextMenu && !contextMenu.contains(event.target as Node);
+      
+      if (isClickOutsideMenu || !contextMenu) {
+        // 菜单关闭，恢复透过状态
+        await this.restoreClickThroughAfterMenuClose();
+      }
+    });
+    
+    // 监听键盘事件，Esc键关闭菜单
+    document.addEventListener('keydown', async (event) => {
+      if (event.key === 'Escape') {
+        const contextMenu = document.querySelector('.context-menu');
+        if (contextMenu) {
+          await this.restoreClickThroughAfterMenuClose();
+        }
+      }
+    });
+    
+    debug('🗑️ 右键菜单监听器已设置');
+  }
+  
+  /**
+   * 菜单关闭后恢复透过状态
+   */
+  private async restoreClickThroughAfterMenuClose(): Promise<void> {
+    try {
+      // 等待一小段时间确保菜单完全关闭
+      setTimeout(async () => {
+        await this.setWindowClickThrough(true);
+        info('🔄 右键菜单关闭后，窗口恢复为透过状态');
+      }, 100);
+    } catch (err) {
+      error(`恢复透过状态失败: ${String(err)}`);
+    }
   }
 
   /**
@@ -41,6 +88,10 @@ export class UiohookPetManager {
 
       // 更新桌宠窗口边界信息
       await this.updatePetWindowBounds();
+      
+      // 设置桌宠窗口为默认透过状态
+      await this.setWindowClickThrough(true);
+      info('🔄 桌宠窗口设置为默认透过状态');
 
       // 尝试启动UIohook监听
       try {
@@ -154,6 +205,19 @@ export class UiohookPetManager {
    * 处理全局鼠标事件
    */
   private async handleGlobalMouseEvent(event: GlobalMouseEvent): Promise<void> {
+    // 处理鼠标移动事件 - 仅记录状态，不改变透过设置
+    if (event.button === 'move') {
+      // 限制日志频率，避免过多输出
+      if (!this.lastMouseMoveLog || Date.now() - this.lastMouseMoveLog > 2000) {
+        debug(`📍 鼠标移动: (${event.x}, ${event.y}) ${event.is_over_pet ? '【在桌宠上】' : '【不在桌宠上】'}`);
+        this.lastMouseMoveLog = Date.now();
+      }
+      
+      // 重要：鼠标移动时不改变透过状态，保持桌宠默认透过
+      // 这样可以避免覆盖右键时设置的不透过状态
+      return; // 移动事件处理完成
+    }
+    
     info(`🌍 处理全局鼠标事件: ${event.button} 在 (${event.x}, ${event.y}) ${event.is_over_pet ? '【在桌宠上】' : '【不在桌宠上】'}`);
     
     // 更详细的位置信息
@@ -161,14 +225,42 @@ export class UiohookPetManager {
     
     if (event.is_over_pet) {
       if (event.button === 'left') {
-        info('🐱 检测到左键点击桌宠 - 执行透过处理');
-        await this.handleLeftClickOnPet();
+        info('🐱 检测到左键点击桌宠 - 保持透过状态，点击将直接透过');
+        // 左键点击时不需要处理，保持默认透过状态即可
       } else if (event.button === 'right') {
-        info('🐱 检测到右键点击桌宠 - 阻止透过并显示菜单');
-        await this.handleRightClickOnPet();
+        info('🐱 检测到右键点击桌宠 - 设置为不透过以显示菜单');
+        await this.handleRightClickOnPet(event.x, event.y);
       }
     } else {
       debug(`🔍 鼠标不在桌宠上的${event.button}键点击，位置: (${event.x}, ${event.y})`);
+      // 鼠标不在桌宠上时，恢复默认透过状态
+      await this.setWindowClickThrough(true);
+    }
+  }
+
+  /**
+   * 处理左键点击桌宠 - 版本2 (预透过机制)
+   */
+  private async handleLeftClickOnPetV2(): Promise<void> {
+    try {
+      info('⚡ 使用预透过机制处理左键点击...');
+      
+      // 新策略: 在平时就设置透过，点击时不变
+      // 这样就能确保左键点击直接透过到底层
+      await this.setWindowClickThrough(true);
+      info('🔄 窗口设为透过状态，左键点击将直接透过');
+      
+      // 等待一小段时间再恢复交互，让点击事件充分传播
+      setTimeout(async () => {
+        await this.setWindowClickThrough(false);
+        info('🔙 窗口恢复为交互状态');
+      }, 300); // 300ms后恢复
+      
+      debug('✅ 预透过机制处理完成');
+    } catch (err) {
+      error(`预透过机制处理失败: ${String(err)}`);
+      // 确保在出错时也恢复窗口状态
+      await this.setWindowClickThrough(false);
     }
   }
 
@@ -183,8 +275,8 @@ export class UiohookPetManager {
       await this.setWindowClickThrough(true);
       info('📋 窗口已设置为透过状态');
       
-      // 步骤2: 很短的延迟让点击事件通过
-      await new Promise(resolve => setTimeout(resolve, 50));
+      // 步骤2: 增加延迟时间让点击事件充分通过
+      await new Promise(resolve => setTimeout(resolve, 200)); // 增加到200ms
       
       // 步骤3: 恢复窗口为不透过
       await this.setWindowClickThrough(false);
@@ -201,19 +293,75 @@ export class UiohookPetManager {
   /**
    * 处理右键点击桌宠
    */
-  private async handleRightClickOnPet(): Promise<void> {
+  private async handleRightClickOnPet(mouseX?: number, mouseY?: number): Promise<void> {
     try {
       info('🖱️ 处理右键点击桌宠');
       
-      // 确保窗口不透过，以便右键菜单能正常工作
+      // 设置窗口为不透过，以便右键菜单能正常工作
       await this.setWindowClickThrough(false);
+      info('🔒 右键点击时，窗口设置为不透过状态以显示菜单');
       
-      // 这里可以触发右键菜单显示的逻辑
-      // 比如发送自定义事件或调用菜单组件
-      debug('📋 右键菜单准备就绪');
+      // 触发右键菜单显示
+      await this.showContextMenu(mouseX, mouseY);
       
     } catch (err) {
       error(`右键点击处理失败: ${String(err)}`);
+    }
+  }
+  
+  /**
+   * 显示右键菜单
+   */
+  private async showContextMenu(mouseX?: number, mouseY?: number): Promise<void> {
+    try {
+      // 创建模拟的鼠标事件来触发右键菜单
+      const currentWindow = getCurrentWebviewWindow();
+      const windowPosition = await currentWindow.outerPosition();
+      
+      // 如果没有提供鼠标位置，使用窗口中心
+      const clientX = mouseX ? mouseX - windowPosition.x : 100;
+      const clientY = mouseY ? mouseY - windowPosition.y : 100;
+      
+      info(`🎯 触发右键菜单显示，位置: 屏幕(${mouseX || 'N/A'}, ${mouseY || 'N/A'}) -> 窗口内(${clientX}, ${clientY})`);
+      
+      // 尝试直接触发contextmenu事件，让MainPage的处理器捕获
+      const mainWrapper = document.querySelector('.main-wrapper') as HTMLElement;
+      if (mainWrapper) {
+        // 创建模拟的MouseEvent
+        const mockEvent = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: Math.max(0, clientX),
+          clientY: Math.max(0, clientY),
+          button: 2,
+          screenX: mouseX || windowPosition.x + clientX,
+          screenY: mouseY || windowPosition.y + clientY
+        });
+        
+        // 直接在main-wrapper元素上触发右键事件
+        mainWrapper.dispatchEvent(mockEvent);
+        info('🎯 已向main-wrapper元素分发右键事件');
+      } else {
+        warn('未找到main-wrapper元素，尝试在document上触发事件');
+        
+        // 创建模拟的MouseEvent
+        const mockEvent = new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: Math.max(0, clientX),
+          clientY: Math.max(0, clientY),
+          button: 2
+        });
+        
+        // 分发事件到document
+        document.dispatchEvent(mockEvent);
+        info('🎯 已向document分发右键事件');
+      }
+      
+      debug('📋 右键菜单事件已触发');
+      
+    } catch (err) {
+      error(`显示右键菜单失败: ${String(err)}`);
     }
   }
 
@@ -245,18 +393,22 @@ export class UiohookPetManager {
         const isOverPet = await this.checkMouseOverPet(screenX, screenY);
         
         if (isLeftClick) {
-          info(`🐱 检测到左键点击桌宠 ${isOverPet ? '【在桌宠上】' : '【不在桌宠上】'} - 执行透过处理`);
-          await this.handleLeftClickOnPet();
+          info(`🐱 检测到左键点击桌宠 ${isOverPet ? '【在桌宠上】' : '【不在桌宠上】'} - 保持透过状态`);
+          // 左键点击时不需要处理，保持默认透过状态即可
         } else if (isRightClick) {
-          info(`🐱 检测到右键点击桌宠 ${isOverPet ? '【在桌宠上】' : '【不在桌宠上】'} - 阻止透过并显示菜单`);
-          await this.handleRightClickOnPet();
+          info(`🐱 检测到右键点击桌宠 ${isOverPet ? '【在桌宠上】' : '【不在桌宠上】'} - 设置为不透过并显示菜单`);
+          // 阻止默认右键菜单
+          event.preventDefault();
+          event.stopPropagation();
+          
+          await this.handleRightClickOnPet(screenX, screenY);
         }
       } catch (err) {
         error(`备用鼠标事件处理失败: ${String(err)}`);
       }
     });
     
-    // 添加鼠标移动监听，实时显示鼠标位置状态
+    // 添加鼠标移动监听，仅用于显示状态（不改变透过设置）
     document.addEventListener('mousemove', async (event) => {
       try {
         const mouseX = event.clientX;
@@ -269,11 +421,13 @@ export class UiohookPetManager {
         
         const isOverPet = await this.checkMouseOverPet(screenX, screenY);
         
-        // 每秒最多输出一次，避免日志过多
-        if (!this.lastMouseMoveLog || Date.now() - this.lastMouseMoveLog > 1000) {
+        // 每秒2秒最多输出一次，避免日志过多
+        if (!this.lastMouseMoveLog || Date.now() - this.lastMouseMoveLog > 2000) {
           debug(`📍 鼠标位置: 屏幕(${screenX}, ${screenY}) ${isOverPet ? '【在桌宠上】' : '【不在桌宠上】'}`);
           this.lastMouseMoveLog = Date.now();
         }
+        
+        // 重要：鼠标移动时不改变透过设置
       } catch (err) {
         // 静默处理移动事件错误，避免日志过多
       }
