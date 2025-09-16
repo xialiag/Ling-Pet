@@ -142,15 +142,15 @@
               </div>
               <v-slider 
                 v-model="ac.live2dModelPositionY" 
-                :min="0" 
-                :max="1" 
+                :min="-5" 
+                :max="5" 
                 :step="0.01" 
                 thumb-label 
                 hide-details
                 color="primary"
               ></v-slider>
               <div class="text-caption text-medium-emphasis mt-1">
-                调整模型垂直位置 (0:最上, 1:最下)
+                调整模型垂直位置 (-5:最上, 5:最下)
               </div>
             </div>
           </div>
