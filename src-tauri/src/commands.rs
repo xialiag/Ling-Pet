@@ -3,12 +3,11 @@ use crate::sbv2_manager::Sbv2Manager;
 use std::os::windows::process::CommandExt; // for creation_flags
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
-use tauri::Manager;
 use tauri::State;
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_opener::OpenerExt;
 
-#[tauri::command]
-pub fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
+pub fn quit_app_with_handle<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // Best-effort stop before quitting
     let state: State<Sbv2Manager> = app.state();
     if let Ok(mut guard) = state.child.lock() {
@@ -18,6 +17,12 @@ pub fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
         }
     }
     app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) -> Result<(), String> {
+    quit_app_with_handle(&app)?;
     Ok(())
 }
 

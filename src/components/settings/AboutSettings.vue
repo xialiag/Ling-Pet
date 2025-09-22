@@ -49,9 +49,6 @@
             <v-btn block variant="flat" :elevation="0" color="primary" size="large" prepend-icon="mdi-folder-open-outline" @click="openDataFolder">
               打开数据文件夹
             </v-btn>
-            <v-btn block variant="flat" :elevation="0" color="error" size="large" prepend-icon="mdi-power" @click="quitApp">
-              退出应用
-            </v-btn>
           </div>
         </div>
       </v-col>
@@ -76,12 +73,6 @@ onMounted(async () => {
 });
 
 // ------- 新增结束 -------
-
-// Quit the application
-async function quitApp() {
-  // 后端 quit_app 会优雅停止 sbv2
-  await invoke('quit_app')
-}
 
 // Open the application data folder
 async function openDataFolder() {

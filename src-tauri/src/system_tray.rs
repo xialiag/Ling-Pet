@@ -1,3 +1,4 @@
+use crate::commands::quit_app_with_handle;
 use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem},
@@ -9,6 +10,7 @@ const MENU_ID_SETTINGS: &str = "open-settings";
 const MENU_ID_CHAT_HISTORY: &str = "open-chat-history";
 const MENU_ID_TOGGLE_MAIN: &str = "toggle-main";
 const MENU_ID_TOGGLE_DEVTOOLS: &str = "toggle-devtools";
+const MENU_ID_QUIT_APP: &str = "quit-app";
 const EVENT_TOGGLE_DEVTOOLS: &str = "lingpet://toggle-devtools";
 
 #[derive(Clone, Copy)]
@@ -83,6 +85,13 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             true,
             None::<&str>,
         )?)
+        .item(&MenuItem::with_id(
+            app,
+            MENU_ID_QUIT_APP,
+            "退出应用",
+            true,
+            None::<&str>,
+        )?)
         .build()?;
 
     TrayIconBuilder::new()
@@ -109,6 +118,11 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             MENU_ID_TOGGLE_DEVTOOLS => {
                 if let Err(error) = handle.emit(EVENT_TOGGLE_DEVTOOLS, ()) {
                     log::error!("广播开发者工具切换事件失败: {error}");
+                }
+            }
+            MENU_ID_QUIT_APP => {
+                if let Err(error) = quit_app_with_handle(handle) {
+                    log::error!("退出应用失败: {error}");
                 }
             }
             _ => {}
