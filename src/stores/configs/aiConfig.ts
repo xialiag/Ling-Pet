@@ -10,7 +10,7 @@ export const useAIConfigStore = defineStore(
     const model = ref('deepseek-chat') // 默认模型
     const temperature = ref(0.7) // 默认温度
     const maxTokens = ref(2000) // 默认最大令牌数
-    const systemPrompt = ref(DEFAULT_CHARACTER_PROMPT) // 默认系统提示为空
+    const characterPrompt = ref(DEFAULT_CHARACTER_PROMPT) // 默认系统提示为空
     const historyMaxLength = ref(100) // 默认历史记录最大长度
     const autoPlay = ref(false) // 默认自动播放开启
     // 空闲超时（秒）：用于会话在无活动时自动回到空闲状态，范围建议 15~300 秒
@@ -22,7 +22,7 @@ export const useAIConfigStore = defineStore(
       model,
       temperature,
       maxTokens,
-      systemPrompt,
+      characterPrompt,
       historyMaxLength,
       autoPlay,
       inactivityTimeoutSec,

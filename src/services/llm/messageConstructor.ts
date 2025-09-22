@@ -12,7 +12,7 @@ export async function constructMessageForChat(userMessage: string): Promise<AIMe
   const chs = useChatHistoryStore()
   const messages: AIMessage[] = [];
 
-  const systemPrompt = CHAT_SCENARIO_PROMPT + getResponseFormatPromptForChat() + acs.systemPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
+  const systemPrompt = CHAT_SCENARIO_PROMPT + getResponseFormatPromptForChat() + acs.characterPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
 
   messages.push({ role: 'system', content: systemPrompt })
 
@@ -44,7 +44,7 @@ export async function constructMessageForSchedule(scheduleMessage: string): Prom
   // const chs = useChatHistoryStore()
   const messages: AIMessage[] = [];
 
-  const systemPrompt = SCHEDULE_SCENARIO_PROMPT + getResponseFormatPromptForSchedule() + acs.systemPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
+  const systemPrompt = SCHEDULE_SCENARIO_PROMPT + getResponseFormatPromptForSchedule() + acs.characterPrompt + getMemoryPrompt() + getHypothesesPrompt() + await getScreenshotsPrompt();
 
   messages.push({ role: 'system', content: systemPrompt })
 
