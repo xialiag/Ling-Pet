@@ -33,7 +33,6 @@
     "os:allow-hostname",
     "os:default",
     "dialog:default",
-    "notification:default",
     "fs:default",
     {
       "identifier": "fs:read-files",
@@ -95,7 +94,9 @@
           "cmd": "chmod",
           "args": [
             "+x",
-            { "validator": ".+" }
+            {
+              "validator": ".+"
+            }
           ]
         }
       ]

@@ -12,7 +12,6 @@ use sbv2_manager::Sbv2Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_notification::init())
         .manage(Sbv2Manager::new())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -40,7 +39,7 @@ pub fn run() {
             let main_window = app.get_webview_window("main").unwrap();
             // 设置平台特定配置
             if os::macos::is_macos() {
-                os::macos::setup_app();
+                os::macos::setup_app(&app.handle());
                 os::macos::setup_window(&main_window).expect("设置macOS窗口配置时出错");
             }
 

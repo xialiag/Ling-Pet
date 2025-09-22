@@ -86,11 +86,8 @@ async function startPetSizeWatching() {
 </script>
 
 <template>
-  <div class="main-wrapper"
-       :style="{ opacity: ac.opacity }"
-       @wheel.prevent
-       @selectstart.prevent="!(ac.showDevTools ?? false)"
-       @dragstart.prevent="!(ac.showDevTools ?? false)">
+  <div class="main-wrapper" :style="{ opacity: ac.opacity }" @wheel.prevent
+    @selectstart.prevent="!(ac.showDevTools ?? false)" @dragstart.prevent="!(ac.showDevTools ?? false)">
     <DecorationsHost />
     <Live2DAvatar />
     <Input class="input" />
