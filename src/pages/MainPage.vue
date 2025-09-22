@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, watchEffect, onUnmounted } from 'vue';
+import { onMounted, watchEffect, onUnmounted } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import Live2DAvatar from '../components/main/Live2DAvatar.vue';
 import Input from '../components/main/Input.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
-import ContextMenu from '../components/main/ContextMenu.vue';
 import { useAppearanceConfigStore } from '../stores/configs/appearanceConfig';
 import { windowListMaintainer } from '../services/screenAnalysis/windowListMaintainer';
 import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManager';
@@ -18,7 +17,6 @@ import { useMemoryStore } from '../stores/memory.ts';
 import { useHypothesesStore } from '../stores/hypotheses.ts';
 import { useScheduleStore } from '../stores/schedule.ts';
 
-const contextMenuRef = ref();
 const ac = useAppearanceConfigStore();
 const window = getCurrentWebviewWindow();
 const { startWindowListMaintaining, stopWindowListMaintaining } = windowListMaintainer();
@@ -76,15 +74,6 @@ async function setWindowToSquare() {
   }
 }
 
-function handleContextMenu(event: MouseEvent) {
-  const isDevToolsEnabled = ac.showDevTools ?? false;
-  contextMenuRef.value?.showMenu(event);
-  if (!isDevToolsEnabled) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-}
-
 async function startPetSizeWatching() {
   await setWindowToSquare();
 
@@ -100,13 +89,11 @@ async function startPetSizeWatching() {
   <div class="main-wrapper"
        :style="{ opacity: ac.opacity }"
        @wheel.prevent
-       @contextmenu="handleContextMenu"
        @selectstart.prevent="!(ac.showDevTools ?? false)"
        @dragstart.prevent="!(ac.showDevTools ?? false)">
     <DecorationsHost />
     <Live2DAvatar />
     <Input class="input" />
-    <ContextMenu ref="contextMenuRef" />
   </div>
 </template>
 

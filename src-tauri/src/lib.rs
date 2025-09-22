@@ -4,6 +4,8 @@ use tauri::Manager;
 mod commands;
 mod os;
 mod sbv2_manager;
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod system_tray;
 use commands::*;
 use sbv2_manager::Sbv2Manager;
 
@@ -46,6 +48,10 @@ pub fn run() {
                 os::windows::setup_app();
                 os::windows::setup_window(&main_window).expect("设置Windows窗口配置时出错");
             }
+
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            system_tray::setup(&app.handle())
+                .map_err(|err| -> Box<dyn std::error::Error> { Box::new(err) })?;
 
             // 显式隐藏 settings 窗口（保险做法）
             // if let Some(settings_window) = app.get_webview_window("settings") {

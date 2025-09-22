@@ -6,18 +6,13 @@ import { useChatHistoryStore } from './stores/chatHistory';
 import { useScreenAnalysisConfigStore } from './stores/configs/screenAnalysisConfig';
 import { useVitsConfigStore } from './stores/configs/vitsConfig';
 import { useConversationStore } from './stores/conversation';
-import { onMounted, watch } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { denySave } from '@tauri-store/pinia';
 
-// 常量定义
-const MAIN_PAGE_PATHS = ['', '#/', '#'] as const;
-
 const ac = useAppearanceConfigStore();
-
-// 工具函数：检查是否为主页面
-function isMainPage(): boolean {
-  return MAIN_PAGE_PATHS.includes(window.location.hash as typeof MAIN_PAGE_PATHS[number]);
-}
+const unlistenFns: UnlistenFn[] = [];
 
 // 工具函数：检查开发者工具是否开启
 function isDevToolsEnabled(): boolean {
@@ -34,12 +29,7 @@ function handleEvent(event: Event, shouldPrevent: boolean) {
 
 // 右键菜单控制函数
 function handleContextMenu(event: MouseEvent) {
-  // 如果在主页面，让主页面组件自己处理右键菜单
-  if (isMainPage()) {
-    return;
-  }
-  
-  // 在其他页面，如果开发者工具未开启，则禁用右键菜单
+  // 在全局范围内，如果开发者工具未开启，则禁用右键菜单
   return handleEvent(event, true);
 }
 
@@ -77,6 +67,18 @@ onMounted(async () => {
       appElement.classList.toggle('disable-context-menu', !enabled);
     }
   }, { immediate: true });
+
+  const toggleDevToolsUnlisten = await listen('lingpet://toggle-devtools', () => {
+    ac.showDevTools = !ac.showDevTools;
+  });
+  unlistenFns.push(toggleDevToolsUnlisten);
+});
+
+onBeforeUnmount(() => {
+  unlistenFns.forEach((stop) => stop());
+  document.removeEventListener('contextmenu', handleContextMenu);
+  document.removeEventListener('selectstart', handleSelectStart);
+  document.removeEventListener('dragstart', handleDragStart);
 });
 </script>
 
