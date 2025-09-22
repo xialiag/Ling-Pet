@@ -1,53 +1,29 @@
-/*!
- * @fileoverview macOS平台特定功能模块
- * @description 实现macOS平台的特定功能，包括Dock图标隐藏、窗口行为设置等
- * @features
- *   - 隐藏Dock图标 (NSApplicationActivationPolicyAccessory)
- *   - 设置窗口不参与四指轻扫等窗口活动
- *   - 窗口置顶和透明背景支持
- *   - 跨平台兼容性处理
- * @apis
- *   - setup_app: 设置应用全局配置
- *   - setup_window: 设置窗口特定行为
- *   - is_macos: 平台检测函数
- * @dependencies
- *   - cocoa: macOS Cocoa框架绑定
- *   - objc: Objective-C运行时绑定
- * @platform macOS only
- * @author dada
- * @version 1.0.0
- * @since 2025-07-13
- */
-
-//! macOS 特定的功能实现
-//!
-//! 这个模块包含所有 macOS 平台特定的功能，包括：
-//! - 隐藏 Dock 图标
-//! - 设置窗口行为以避免参与四指轻扫等窗口活动
-
-// 抑制 objc 包的已知警告
-#![allow(unexpected_cfgs)]
+// 抑制 objc 包的已知警告，并兼容 cocoa 重导出的弃用 API
+#![allow(unexpected_cfgs, deprecated)]
 
 #[cfg(target_os = "macos")]
-use cocoa::appkit::{
-    NSApp, NSApplication, NSApplicationActivationPolicy, NSWindowCollectionBehavior,
-};
+use tauri::{ActivationPolicy, AppHandle, Runtime, WebviewWindow};
 #[cfg(target_os = "macos")]
-use objc::{msg_send, runtime::Object, sel, sel_impl};
+use tauri_nspanel::WebviewWindowExt;
 #[cfg(target_os = "macos")]
-use tauri::WebviewWindow;
+use tauri_nspanel::cocoa::appkit::{NSMainMenuWindowLevel, NSWindowCollectionBehavior};
+
+#[cfg(target_os = "macos")]
+const NS_WINDOW_STYLE_MASK_NON_ACTIVATING_PANEL: i32 = 1 << 7;
+#[cfg(target_os = "macos")]
+const NS_WINDOW_STYLE_MASK_RESIZABLE: i32 = 1 << 3;
 
 /// 设置 macOS 应用的全局配置
 #[cfg(target_os = "macos")]
-pub fn setup_app() {
-    unsafe {
-        let app = NSApp();
-        // 设置为 accessory 模式，这样不会在 Dock 中显示图标
-        // NSApplicationActivationPolicyAccessory 让应用成为后台应用，不显示在 Dock 中
-        app.setActivationPolicy_(
-            NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory,
-        );
+pub fn setup_app<R: Runtime>(app: &AppHandle<R>) {
+    if let Err(error) = app.set_activation_policy(ActivationPolicy::Regular) {
+        log::warn!("设置 macOS 激活策略失败: {error}");
     }
+
+    if let Err(error) = app.set_dock_visibility(false) {
+        log::warn!("隐藏 Dock 图标失败: {error}");
+    }
+
     request_screen_recording_permission();
 }
 
@@ -57,21 +33,25 @@ pub fn setup_window(window: &WebviewWindow) -> Result<(), Box<dyn std::error::Er
     // 确保窗口可以拖拽
     window.set_ignore_cursor_events(false)?;
 
-    // 获取 NSWindow 对象并设置窗口行为
-    let nswindow = window.ns_window()? as *mut Object;
+    let panel = window
+        .to_panel()
+        .map_err(|err| -> Box<dyn std::error::Error> { Box::new(err) })?;
 
-    unsafe {
-        // 设置窗口集合行为，使其：
-        // - CanJoinAllSpaces: 可以出现在所有桌面空间中
-        // - IgnoresCycle: 不参与窗口循环（Cmd+Tab 等）
-        // - Stationary: 在空间切换时保持位置
-        let behavior = NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces
-            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorIgnoresCycle
-            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorStationary;
+    // 提升窗口层级，保证悬浮层不被其他窗口遮挡
+    panel.set_level((NSMainMenuWindowLevel + 1) as i32);
 
-        #[allow(unused_variables)]
-        let _: () = msg_send![nswindow, setCollectionBehavior: behavior];
-    }
+    // 保持 panel 非激活，同时允许用户拖拽调整尺寸
+    panel.set_style_mask(
+        NS_WINDOW_STYLE_MASK_NON_ACTIVATING_PANEL | NS_WINDOW_STYLE_MASK_RESIZABLE,
+    );
+
+    // 允许桌宠在所有空间、全屏模式下显示，并规避 Cmd+Tab 循环
+    panel.set_collection_behaviour(
+        NSWindowCollectionBehavior::NSWindowCollectionBehaviorCanJoinAllSpaces
+            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorStationary
+            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenAuxiliary
+            | NSWindowCollectionBehavior::NSWindowCollectionBehaviorIgnoresCycle,
+    );
 
     Ok(())
 }
@@ -96,7 +76,7 @@ pub fn request_screen_recording_permission() {
 
 /// 在非 macOS 平台上的空实现
 #[cfg(not(target_os = "macos"))]
-pub fn setup_app() {
+pub fn setup_app<R: Runtime>(_app: &AppHandle<R>) {
     // 在非 macOS 平台上什么都不做
 }
 
