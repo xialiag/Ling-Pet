@@ -49,9 +49,6 @@
             <v-btn block variant="flat" :elevation="0" color="primary" size="large" prepend-icon="mdi-folder-open-outline" @click="openDataFolder">
               打开数据文件夹
             </v-btn>
-            <v-btn block variant="flat" :elevation="0" color="secondary" size="large" prepend-icon="mdi-message-text-outline" @click="openLingChat">
-              打开 LingChat
-            </v-btn>
             <v-btn block variant="flat" :elevation="0" color="error" size="large" prepend-icon="mdi-power" @click="quitApp">
               退出应用
             </v-btn>
@@ -65,7 +62,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { getAllWebviewWindows, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { platform, arch, type as osType, version, locale, hostname } from '@tauri-apps/plugin-os';
 
 const sys = ref({ platform: '', arch: '', type: '', version: '', locale: '', hostname: '' });
@@ -90,33 +86,6 @@ async function quitApp() {
 // Open the application data folder
 async function openDataFolder() {
   await invoke('open_data_folder')
-}
-
-async function openLingChat() {
-  const allWindows = await getAllWebviewWindows()
-  const lingChatWindow = allWindows.find(window => window.label === 'lingchat')
-  if (lingChatWindow) {
-    lingChatWindow?.close()
-    return
-  }
-  const lingChatWindowConfig = {
-    title: 'LingChat',
-    url: '/#/lingchat',
-    label: 'lingchat',
-    width: 1080,
-    height: 720,
-    resizable: true,
-    transparent: false,
-    decorations: true,
-    alwaysOnTop: false,
-    skipTaskbar: false,
-    center: false,
-    visible: false,
-  }
-  new WebviewWindow('lingchat', {
-    ...lingChatWindowConfig,
-    visible: true
-  })
 }
 </script>
 

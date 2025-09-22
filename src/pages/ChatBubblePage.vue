@@ -7,9 +7,9 @@
         <div class="bubble-text" :style="{ textAlign, color: colorTheme.text }">
           {{ displayedMessage }}<span v-if="isTyping" class="typing-cursor" :style="{ color: colorTheme.text }">|</span>
         </div>
-        <!-- <div class="continue-hint">点击灵灵继续</div> -->
+        <!-- <div class="continue-hint">点击继续</div> -->
         <!-- 尾巴 SVG -->
-        <svg class="bubble-tail" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <!-- <svg class="bubble-tail" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
           <path d="M0,0 
             Q0,10 10,14 
             Q12,15 18,18 
@@ -19,7 +19,7 @@
             :fill-opacity="tailStyles.fillOpacity" 
             :stroke="tailStyles.stroke" 
             :stroke-width="tailStyles.strokeWidth" />
-        </svg>
+        </svg> -->
       </div>
     </div>
   </div>
@@ -375,31 +375,31 @@ const bubbleClasses = computed(() => ({
 }))
 
 // 计算SVG尾巴样式
-const tailStyles = computed(() => {
-  const theme = colorTheme.value;
-  const isTransparent = ac.bubbleTransparent;
+// const tailStyles = computed(() => {
+//   const theme = colorTheme.value;
+//   const isTransparent = ac.bubbleTransparent;
   
-  if (isTransparent) {
-    // 透明模式：尾巴也透明，但保持边框一致性
-    return {
-      fill: 'transparent',
-      fillOpacity: '0',
-      stroke: ac.bubbleShowBorder ? theme.border : 'none',
-      strokeWidth: ac.bubbleShowBorder ? '1' : '0',
-      // 添加过渡效果
-      transition: 'stroke 0.3s ease, stroke-width 0.3s ease'
-    };
-  } else {
-    // 正常模式：保持原有的毛玻璃效果
-    return {
-      fill: theme.background,
-      fillOpacity: '0.95',
-      stroke: 'none',
-      strokeWidth: '0',
-      transition: 'fill 0.3s ease, fill-opacity 0.3s ease'
-    };
-  }
-});
+//   if (isTransparent) {
+//     // 透明模式：尾巴也透明，但保持边框一致性
+//     return {
+//       fill: 'transparent',
+//       fillOpacity: '0',
+//       stroke: ac.bubbleShowBorder ? theme.border : 'none',
+//       strokeWidth: ac.bubbleShowBorder ? '1' : '0',
+//       // 添加过渡效果
+//       transition: 'stroke 0.3s ease, stroke-width 0.3s ease'
+//     };
+//   } else {
+//     // 正常模式：保持原有的毛玻璃效果
+//     return {
+//       fill: theme.background,
+//       fillOpacity: '0.95',
+//       stroke: 'none',
+//       strokeWidth: '0',
+//       transition: 'fill 0.3s ease, fill-opacity 0.3s ease'
+//     };
+//   }
+// });
 
 // 计算气泡样式
 const bubbleStyles = computed(() => {

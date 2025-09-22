@@ -13,7 +13,7 @@ export const addNotificationTool: Tool = {
 
     setTimeout(() => {
       // fire-and-forget
-      sendNotification({ title: '灵灵提醒', body: content });
+      sendNotification({ title: '提醒', body: content });
       console.log(`Notification sent after ${safeDelay} seconds: ${content}`);
     }, safeDelay * 1000);
 

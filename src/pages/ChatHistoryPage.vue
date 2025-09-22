@@ -59,7 +59,7 @@
               <template v-for="aiMsg in parseAIMessage(String(message.content))" :key="aiMsg.chinese + aiMsg.emotion">
                 <div class="d-flex justify-start mb-3 ai-message-item">
                   <v-avatar class="mr-3 ai-avatar" size="40">
-                    <v-img :src="getEmotionImage(aiMsg.emotion)" :alt="codeToEmotion(aiMsg.emotion)" cover />
+                    <!-- <v-img :src="getEmotionImage(aiMsg.emotion)" :alt="codeToEmotion(aiMsg.emotion)" cover /> -->
                   </v-avatar>
                   <v-card class="message-bubble ai-bubble" rounded="xl" :style="getEmotionStyle(aiMsg.emotion)">
                     <v-card-text class="pa-3">
@@ -203,7 +203,6 @@ import { useChatHistoryStore } from '../stores/chatHistory';
 import { useVitsConfigStore } from '../stores/configs/vitsConfig';
 import { getEmotionColorTheme } from '../constants/emotionColors';
 import { codeToEmotion } from '../constants/emotions';
-import { getEmotionImageSrcByCode } from '../services/emotionPack';
 import { ref } from 'vue';
 import { voiceVits } from '../services/chatAndVoice/vitsService';
 import { extractItemsFromContent } from '../utils/aiResponse'
@@ -338,9 +337,6 @@ async function playVoice(japaneseText: string, uniqueId: string) {
   }
 }
 
-function getEmotionImage(code: number) {
-  return getEmotionImageSrcByCode(code)
-}
 </script>
 
 <style scoped>

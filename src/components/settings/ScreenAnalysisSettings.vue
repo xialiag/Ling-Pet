@@ -4,7 +4,7 @@
       <v-card-text>
         <v-alert type="info" variant="tonal" density="compact" class="mb-6">
           <div class="d-flex align-center">
-            <span class="mr-1">（测试中）以“.”开头的输入会自动激活屏幕分析，让灵灵看到你的屏幕后回复</span>
+            <span class="mr-1">（测试中）以“.”开头的输入会自动激活屏幕分析，pet会看到你的屏幕后回复</span>
           </div>
         </v-alert>
         <div class="mb-8">

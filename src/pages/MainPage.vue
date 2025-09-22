@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref, watchEffect, onUnmounted, watch } from 'vue';
+import { onMounted, ref, watchEffect, onUnmounted } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { LogicalSize } from '@tauri-apps/api/dpi';
-import Avatar from '../components/main/Avatar.vue';
 import Live2DAvatar from '../components/main/Live2DAvatar.vue';
 import Input from '../components/main/Input.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
@@ -13,7 +12,6 @@ import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManag
 import { createGlobalHandlersManager } from '../services/events/globalHandlers';
 import { useVitsConfigStore } from '../stores/configs/vitsConfig.ts';
 import { startSbv2 } from '../services/chatAndVoice/sbv2Process';
-import { initEmotionPack, ensureDefaultEmotionPack } from '../services/emotionPack.ts';
 import { registerDefaultTools } from '../services/tools/index.ts';
 import { startNoInteractionWatcher, stopNoInteractionWatcher } from '../services/interactions/noInteractionWatcher';
 import { useMemoryStore } from '../stores/memory.ts';
@@ -28,39 +26,22 @@ const { startChatBubbleWatching, stopChatBubbleWatching } = chatBubbleManager();
 const globalHandlersManager = createGlobalHandlersManager();
 const vitsConfig = useVitsConfigStore();
 
-// 监听Avatar类型变化
-watch(() => ac.avatarType, (newType) => {
-  // 当切换到Live2D模式时，默认关闭装饰并设置边界类型为无边界
-  if (newType === 'live2d') {
-    ac.decorationType = 'none';
-    ac.live2dBorderType = 'none';
-  }
-});
-
 onMounted(async () => {
   try {
     useMemoryStore().$tauri.start();
     useHypothesesStore().$tauri.start();
-    
+
     registerDefaultTools()
-    startPetSizeWatching();  // 监听设置中的宠物大小以实时调整窗口
-    startChatBubbleWatching();  // 监听聊天气泡状态以打开或关闭
-    globalHandlersManager.start(); // 根据设置注册/管理全局事件处理
-    startWindowListMaintaining();  // 实时更新当前窗口状态
-    
+    startPetSizeWatching();
+    startChatBubbleWatching();
+    globalHandlersManager.start();
+    startWindowListMaintaining();
+
     if (vitsConfig.autoStartSbv2) {
       startSbv2(vitsConfig.installPath);
     }
-    
-    // 启动"长时间无交互"监视器（默认 1 分钟触发一次）
+
     startNoInteractionWatcher();
-    
-    try {
-      await ensureDefaultEmotionPack()
-      await initEmotionPack()
-    } catch (err) { 
-      console.error('初始化情绪包失败：', err) 
-    }
 
     // Initialize schedule manager: restore state and start heartbeat
     try {
@@ -87,9 +68,6 @@ onUnmounted(() => {
 
 let stopPetSizeWatcher: (() => void) | null = null;
 
-/**
- * 设置窗口为正方形
- */
 async function setWindowToSquare() {
   try {
     await window.setSize(new LogicalSize(ac.petSize, ac.petSize + 30));
@@ -98,27 +76,18 @@ async function setWindowToSquare() {
   }
 }
 
-/**
- * 处理右键菜单事件
- */
 function handleContextMenu(event: MouseEvent) {
   const isDevToolsEnabled = ac.showDevTools ?? false;
-  
-  // 显示自定义右键菜单
   contextMenuRef.value?.showMenu(event);
-  
-  // 如果开发者工具未开启，阻止默认右键菜单
   if (!isDevToolsEnabled) {
     event.preventDefault();
     event.stopPropagation();
   }
 }
 
-/**
- * 启动宠物大小监听
- */
 async function startPetSizeWatching() {
   await setWindowToSquare();
+
   if (!stopPetSizeWatcher) {
     stopPetSizeWatcher = watchEffect(async () => {
       await setWindowToSquare();
@@ -128,24 +97,15 @@ async function startPetSizeWatching() {
 </script>
 
 <template>
-  <div class="main-wrapper" 
-       :style="{ opacity: ac.opacity }" 
+  <div class="main-wrapper"
+       :style="{ opacity: ac.opacity }"
        @wheel.prevent
        @contextmenu="handleContextMenu"
        @selectstart.prevent="!(ac.showDevTools ?? false)"
-       @dragstart.prevent="!(ac.showDevTools ?? false)"> <!-- 防止滚轮事件导致滚动，自定义右键菜单处理 -->
-    <!-- 装饰组件调度 -->
+       @dragstart.prevent="!(ac.showDevTools ?? false)">
     <DecorationsHost />
-    <!-- 根据配置选择Avatar类型 -->
-    <Avatar v-if="ac.avatarType === 'image' && ac.decorationType !== 'fallingStars'" />
-    <Live2DAvatar v-else-if="ac.avatarType === 'live2d'" />
-    <!-- FallingStars装饰需要在Avatar之后渲染 -->
-    <div v-if="ac.decorationType === 'fallingStars'" class="falling-stars-container">
-      <Avatar />
-    </div>
+    <Live2DAvatar />
     <Input class="input" />
-    
-    <!-- 自定义右键菜单 -->
     <ContextMenu ref="contextMenuRef" />
   </div>
 </template>
@@ -164,18 +124,15 @@ async function startPetSizeWatching() {
   overscroll-behavior: none;
   padding: 5px;
 
-  /* 防止图片被选中和拖拽 */
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
   -webkit-user-drag: none;
-  /* 防止图片加载时的闪烁 */
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
 }
 
-/* 鼠标悬停时显示按钮和输入框 */
 .main-wrapper:hover .input,
 .main-wrapper:focus-within .input {
   opacity: 0.95;
@@ -184,15 +141,5 @@ async function startPetSizeWatching() {
 .main-wrapper:hover .button,
 .main-wrapper:focus-within .button {
   opacity: 1;
-}
-
-/* Falling stars container */
-.falling-stars-container {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 </style>

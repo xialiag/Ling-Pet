@@ -1,7 +1,6 @@
 import { type HandlerDescriptor } from "../handlerManager";
 import { handleAvatarMultiClick } from "./onAvatarMultiClick";
 import { handleNewWindows } from "./onNewWindows";
-import { handleScheduleIdle } from "./onScheduleIdle";
 import { useScreenAnalysisConfigStore } from "../../../stores/configs/screenAnalysisConfig";
 
 // Central registry for all event handlers (flat, per-file features)
@@ -24,18 +23,10 @@ export function allHandlerDescriptors(): HandlerDescriptor[] {
     handle: handleNewWindows,
   };
 
-  const dScheduleIdle: HandlerDescriptor<'SCHEDULE_IDLE'> = {
-    key: 'schedule:on-idle-chat',
-    event: 'SCHEDULE_IDLE',
-    blocking: true,
-    isEnabled: () => true,
-    handle: handleScheduleIdle,
-  };
-
   return [
     dNewWindows as HandlerDescriptor,
     dAvatarMultiClick as HandlerDescriptor,
-    dScheduleIdle as HandlerDescriptor,
+    // dScheduleIdle as HandlerDescriptor,
   ];
 }
 
