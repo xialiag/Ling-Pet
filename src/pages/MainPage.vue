@@ -41,6 +41,37 @@ onMounted(async () => {
 
     startNoInteractionWatcher();
 
+    // 跨屏拖动在 macOS/多显示器下可能触发窗口尺寸重置为默认 200×200
+    // 这里监听窗口移动/缩放相关事件并强制按照配置尺寸恢复
+    try {
+      // 中文注释：记录用于卸载的停止函数
+      const stops: Array<() => void> = []
+      // 中文注释：监听窗口被移动（包括跨屏）
+      const stopMoved = await window.onMoved(async () => {
+        await setWindowToSquare()
+      })
+      stops.push(stopMoved)
+      // 中文注释：尽可能监听缩放因子变化（不同屏幕 DPR 切换）
+      const anyWin: any = window as unknown as any
+      if (typeof anyWin.onScaleChanged === 'function') {
+        const stopScale = await anyWin.onScaleChanged(async () => {
+          await setWindowToSquare()
+        })
+        stops.push(stopScale)
+      }
+      // 中文注释：兜底监听尺寸变化，确保内部画布跟随
+      if (typeof window.onResized === 'function') {
+        const stopResized = await (window as any).onResized(async () => {
+          await setWindowToSquare()
+        })
+        stops.push(stopResized)
+      }
+      // 中文注释：在组件卸载时清理监听器
+      stopWindowEventListeners = () => stops.forEach((fn) => { try { fn() } catch {} })
+    } catch (e) {
+      console.warn('注册窗口事件监听失败（可忽略）:', e)
+    }
+
     // Initialize schedule manager: restore state and start heartbeat
     try {
       const schedule = useScheduleStore()
@@ -62,9 +93,12 @@ onUnmounted(() => {
   globalHandlersManager.stop();
   stopWindowListMaintaining();
   stopNoInteractionWatcher();
+  // 中文注释：移除窗口事件监听，避免重复绑定
+  stopWindowEventListeners?.()
 });
 
 let stopPetSizeWatcher: (() => void) | null = null;
+let stopWindowEventListeners: (() => void) | null = null;
 
 async function setWindowToSquare() {
   try {
