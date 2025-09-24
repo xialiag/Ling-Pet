@@ -25,7 +25,21 @@ pub fn run() {
         )
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin({
+            use tauri_plugin_window_state::{Builder as WindowStateBuilder, StateFlags};
+            WindowStateBuilder::new()
+                // 中文注释：不追踪可见性，避免插件在恢复时强制显示窗口
+                .with_state_flags(
+                    StateFlags::SIZE
+                        | StateFlags::POSITION
+                        | StateFlags::MAXIMIZED
+                        | StateFlags::DECORATIONS
+                        | StateFlags::FULLSCREEN,
+                )
+                // 中文注释：完全排除通知窗口，防止被插件管理
+                .with_denylist(&["notification"])
+                .build()
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_pinia::init())
         .plugin(tauri_plugin_screenshots::init())
