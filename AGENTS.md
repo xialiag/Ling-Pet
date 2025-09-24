@@ -15,9 +15,10 @@ LingPet pairs a Vue 3 front end with a Tauri shell. Front-end views, stores, and
 ## Coding Style & Naming Conventions
 Use `<script setup lang="ts">` with two-space indentation, single quotes, and the existing no-semicolon style. Name Vue components and Pinia stores in PascalCase (`Live2DAvatar.vue`, `usePetStateStore`). Prefix composables with `use` under `src/composables`, and keep cross-feature constants in `src/constants`. Rust modules should follow `rustfmt` defaults and stay organized by capability inside `src-tauri/src`.
 
-在编写代码时，使用中文在每段开头写注释
+在编写代码时，使用中文在每段开头写注释。
 保持代码的清晰结构与可读性。当你觉得结构混乱时，应当提醒user重构代码。
-写完代码后应当记得运行cargo check -q检查错误。
+写完代码后应当记得运行语法检查器来检查错误。
+在思考时可以用英文，但在最终汇报时使用中文。
 
 ## Testing Guidelines
 Automated tests are not yet in place, so every change must run `pnpm build` and `pnpm tauri dev` without errors. When adding coverage, prefer Vitest specs colocated as `*.spec.ts` alongside the feature and exercise Pinia stores through integration-style tests. Rust additions should include module-level unit tests gated by `cargo test`.
