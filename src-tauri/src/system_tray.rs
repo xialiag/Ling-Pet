@@ -50,7 +50,7 @@ impl WindowKind {
     }
 
     fn resizable(self) -> bool {
-        matches!(self, Self::Settings)
+        matches!(self, Self::Settings) || matches!(self, Self::ChatHistory)
     }
 }
 
