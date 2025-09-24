@@ -51,3 +51,23 @@ export const addScheduleTool: Tool = {
     };
   },
 };
+
+export const deleteScheduleTool: Tool = {
+  name: 'deleteSchedule',
+  description:
+    '参数：任务ID（字符串）\n' +
+    '  功能：删除一个任务（无论其当前状态如何），从任务列表中移除。',
+  async call(id?: string): Promise<ExecToolResult> {
+    if (!id || String(id).trim() === '') {
+      return { ok: false, continue: false, result: '必须提供任务ID' };
+    }
+    const schedule = useScheduleStore();
+    const success = schedule.deleteSchedule(String(id));
+    console.log('[tool:deleteSchedule] called', { id, success });
+    if (success) {
+      return { ok: true, continue: false, result: JSON.stringify({ id }) };
+    } else {
+      return { ok: false, continue: false, result: `未找到ID为 ${id} 的任务` };
+    }
+  },
+};
