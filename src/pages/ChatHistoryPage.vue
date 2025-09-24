@@ -104,6 +104,64 @@
       </v-col>
     </v-row>
 
+    <!-- 中文注释：在页面底部展示计划任务列表（来自 schedule store） -->
+    <v-row justify="center" class="mt-6">
+      <v-col cols="12" md="10" lg="8">
+        <v-card class="schedule-card" rounded="xl" variant="flat">
+          <v-card-title class="d-flex align-center py-3">
+            <v-icon class="mr-2" color="primary">mdi-calendar-clock</v-icon>
+            计划任务
+            <v-spacer></v-spacer>
+            <v-chip size="small" color="grey-lighten-2" variant="elevated">
+              共 {{ tasks.length }} 个
+            </v-chip>
+          </v-card-title>
+          <v-divider></v-divider>
+          <v-card-text class="py-0">
+            <div v-if="tasks.length === 0" class="text-center py-6 text-grey">
+              <v-icon size="28" color="grey-lighten-1" class="mb-2">mdi-timetable</v-icon>
+              暂无计划任务
+            </div>
+            <v-list v-else density="comfortable">
+              <v-list-item
+                v-for="t in sortedTasks"
+                :key="t.id"
+                class="px-2 py-1 schedule-item"
+              >
+                <template #prepend>
+                  <v-avatar size="28" class="mr-2" :class="statusAvatarClass(t.status)">
+                    <v-icon size="18">{{ statusIcon(t.status) }}</v-icon>
+                  </v-avatar>
+                </template>
+                <v-list-item-title class="text-body-2 font-weight-medium">
+                  {{ t.prompt }}
+                </v-list-item-title>
+                <v-list-item-subtitle class="text-caption text-grey-darken-1 schedule-subtitle">
+                  <span class="meta">状态：</span>
+                  <v-chip size="x-small" :color="statusColor(t.status)" variant="flat" class="status-chip">{{ statusLabel(t.status) }}</v-chip>
+                  <span class="meta">计划：{{ fmtTime(t.scheduledAt) }}</span>
+                  <span v-if="t.outdatedAt" class="meta">过期：{{ fmtTime(t.outdatedAt) }}</span>
+                </v-list-item-subtitle>
+                <template #append>
+                  <!-- 中文注释：一个按钮，能取消则取消，否则删除 -->
+                  <v-btn
+                    icon
+                    size="small"
+                    variant="text"
+                    color="error"
+                    :aria-label="taskActionLabel(t)"
+                    @click="handleTaskAction(t)"
+                  >
+                    <v-icon size="18">{{ taskActionIcon(t) }}</v-icon>
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+    
     <v-row class="clear-btn-bar">
       <v-btn color="error" variant="flat" @click="clearDialog = true">
         <v-icon left>mdi-delete-outline</v-icon>
@@ -148,8 +206,26 @@ import { ref } from 'vue';
 import { useChatHistoryStore } from '../stores/chatHistory';
 import { extractItemsFromContent } from '../utils/aiResponse'
 import { ToolResultMessageContent } from '../services/tools';
+// 中文注释：引入计划任务的Pinia Store，用于展示与取消任务
+import { computed, onMounted } from 'vue'
+import { useScheduleStore, type ScheduleTask } from '../stores/schedule'
 
 const chs = useChatHistoryStore();
+// 中文注释：初始化调度Store实例
+const schedule = useScheduleStore()
+// 中文注释：在本页面也确保从 Tauri 存储中恢复任务并启动心跳（避免仅在 MainPage 初始化时才生效）
+onMounted(() => {
+  try {
+    // 中文注释：启动持久化适配器（若已启动会被忽略）
+    ;(schedule as any).$tauri?.start?.()
+    // 中文注释：恢复悬挂任务状态
+    schedule.rehydrate()
+    // 中文注释：启动心跳（若已启动会直接返回）
+    schedule.startHeartbeat()
+  } catch (e) {
+    console.warn('[ChatHistoryPage] schedule init skipped:', e)
+  }
+})
 
 type ParsedAIMessage = { chinese: string }
 
@@ -195,6 +271,98 @@ async function playVoice(text: string, uniqueId: string) {
   console.warn('TODO: 语音播放尚未实现。文本：', text)
   vitsWarning.value = true
   setTimeout(() => { vitsWarning.value = false }, 2500)
+}
+
+// 中文注释：调度任务区——派生任务列表、排序与操作
+const tasks = computed(() => schedule.tasks)
+const sortedTasks = computed(() => {
+  // 中文注释：优先展示 running/outdated/pending/scheduled，然后是 accomplished/canceled；同组内按时间排序
+  const order: Record<ScheduleTask['status'], number> = {
+    running: 0,
+    outdated: 1,
+    pending: 2,
+    scheduled: 3,
+    accomplished: 4,
+    canceled: 5,
+  }
+  return [...tasks.value].sort((a, b) => {
+    const byStatus = order[a.status] - order[b.status]
+    if (byStatus !== 0) return byStatus
+    const ta = a.startedAt ?? a.scheduledAt ?? a.createdAt
+    const tb = b.startedAt ?? b.scheduledAt ?? b.createdAt
+    return tb - ta
+  })
+})
+
+// 中文注释：展示格式化工具与UI辅助
+function two(n: number) { return n < 10 ? `0${n}` : `${n}` }
+function fmtTime(ts?: number) {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  const Y = d.getFullYear()
+  const M = two(d.getMonth() + 1)
+  const D = two(d.getDate())
+  const h = two(d.getHours())
+  const m = two(d.getMinutes())
+  return `${Y}-${M}-${D} ${h}:${m}`
+}
+
+function statusLabel(s: ScheduleTask['status']) {
+  switch (s) {
+    case 'scheduled': return '已计划'
+    case 'pending': return '排队中'
+    case 'running': return '执行中'
+    case 'outdated': return '已过期'
+    case 'accomplished': return '已完成'
+    case 'canceled': return '已取消'
+  }
+}
+
+function statusColor(s: ScheduleTask['status']) {
+  switch (s) {
+    case 'running': return 'primary'
+    case 'pending': return 'indigo'
+    case 'scheduled': return 'grey'
+    case 'outdated': return 'orange'
+    case 'accomplished': return 'green'
+    case 'canceled': return 'red'
+  }
+}
+
+function statusIcon(s: ScheduleTask['status']) {
+  switch (s) {
+    case 'running': return 'mdi-progress-clock'
+    case 'pending': return 'mdi-timer-sand'
+    case 'scheduled': return 'mdi-calendar-clock'
+    case 'outdated': return 'mdi-clock-alert-outline'
+    case 'accomplished': return 'mdi-check-circle-outline'
+    case 'canceled': return 'mdi-close-circle-outline'
+  }
+}
+
+function statusAvatarClass(s: ScheduleTask['status']) {
+  return `status-avatar-${s}`
+}
+
+function canCancel(s: ScheduleTask['status']) {
+  return s !== 'running' && s !== 'accomplished' && s !== 'canceled'
+}
+
+// 中文注释：根据任务状态执行操作；可取消则取消，否则删除
+function handleTaskAction(t: ScheduleTask) {
+  if (canCancel(t.status)) {
+    schedule.cancelSchedule(t.id)
+  } else {
+    schedule.deleteSchedule(t.id)
+  }
+}
+
+// 中文注释：用于按钮的图标与标签（辅助可访问性）
+function taskActionIcon(t: ScheduleTask) {
+  return canCancel(t.status) ? 'mdi-close-circle-outline' : 'mdi-delete-outline'
+}
+function taskActionLabel(t: ScheduleTask) {
+  return (canCancel(t.status) ? '取消任务 ' : '删除任务 ') + t.id
 }
 
 </script>
@@ -370,6 +538,64 @@ async function playVoice(text: string, uniqueId: string) {
   box-shadow: none;
   font-weight: 500;
   letter-spacing: 1px;
+}
+
+/* 中文注释：计划任务卡片样式，延续页面的简洁边框与圆角 */
+.schedule-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e8e8e8;
+}
+
+/* 中文注释：任务列表项的细节优化 */
+.schedule-item + .schedule-item {
+  border-top: 1px dashed #efefef;
+}
+
+/* 中文注释：让副标题区域可换行，避免文字被省略号截断 */
+.schedule-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* 中文注释：元信息段落的间距微调 */
+.schedule-subtitle .meta {
+  margin-right: 0;
+}
+
+/* 中文注释：确保状态 Chip 全文显示 */
+.status-chip :deep(.v-chip__content) {
+  overflow: visible;
+}
+
+/* 中文注释：不同状态的圆形头像色彩标识 */
+.status-avatar-running {
+  background: #1976d2;
+  color: #fff;
+}
+.status-avatar-pending {
+  background: #3949ab;
+  color: #fff;
+}
+.status-avatar-scheduled {
+  background: #9e9e9e;
+  color: #fff;
+}
+.status-avatar-outdated {
+  background: #fb8c00;
+  color: #fff;
+}
+.status-avatar-accomplished {
+  background: #43a047;
+  color: #fff;
+}
+.status-avatar-canceled {
+  background: #e53935;
+  color: #fff;
 }
 
 /* 优化的顶部警告浮层（保留占位用于语音未实现提示） */

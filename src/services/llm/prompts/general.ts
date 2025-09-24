@@ -1,6 +1,7 @@
 import { useMemoryStore } from "../../../stores/memory";
 import { useHypothesesStore } from "../../../stores/hypotheses";
 import { getScreenshotableWindows } from "../../screenAnalysis/screenDescription";
+import { useScheduleStore } from "../../../stores/schedule";
 
 export function getMemoryPrompt(): string {
   return `
@@ -30,6 +31,18 @@ export async function getScreenshotsPrompt(): Promise<string> {
 以下是当前可截图窗口的列表：
 ${JSON.stringify(await getScreenshotableWindows())}
 当你想查看窗口时，记得在对应的工具中填写id。
+
+`
+}
+
+export function getTaskListPrompt(): string {
+  let taskJsonString = useScheduleStore().serializeTasksJSON({ max: 10})
+  return `
+#### 任务列表
+
+以下是你已经安排的任务列表（仅展示最近的10个）：
+${taskJsonString}
+任务会在时间到达时触发，你可以参考这些来决定当下该做什么。
 
 `
 }

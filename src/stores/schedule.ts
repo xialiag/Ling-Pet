@@ -29,6 +29,21 @@ function genId() {
 
 const DEFAULT_HEARTBEAT_MS = 15000
 
+// 中文注释：将毫秒差值格式化为“X小时Y分Z秒前/后”的相对时间文本
+function formatRelativeHMS(deltaMs: number): string {
+  // 中文注释：正数表示未来（后），负数表示过去（前）
+  const suffix = deltaMs >= 0 ? '后' : '前'
+  const ms = Math.abs(deltaMs)
+  const h = Math.floor(ms / 3600000)
+  const m = Math.floor((ms % 3600000) / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  const parts: string[] = []
+  if (h > 0) parts.push(`${h}小时`)
+  if (m > 0) parts.push(`${m}分`)
+  if (s > 0 || parts.length === 0) parts.push(`${s}秒`)
+  return parts.join('') + suffix
+}
+
 export const useScheduleStore = defineStore('schedule', {
   state: () => ({
     tasks: [] as ScheduleTask[],
@@ -63,6 +78,40 @@ export const useScheduleStore = defineStore('schedule', {
       task.status = 'canceled'
       task.finishedAt = Date.now()
       task.result = { type: 'canceled' }
+    },
+
+    // 中文注释：删除一个任务（无论其当前状态如何），从任务列表中移除
+    deleteSchedule(id: string): boolean {
+      const idx = this.tasks.findIndex(t => t.id === id)
+      if (idx < 0) return false
+      const removed = this.tasks[idx]
+      this.tasks.splice(idx, 1)
+      console.log('[schedule] deleteSchedule', { id, removedStatus: removed?.status })
+      return true
+    },
+
+    // 中文注释：仅将“任务列表”序列化为 JSON 字符串（不含 meta 信息），支持截取列表最后 N 项，且可将时间字段转为“时分秒”的相对时间文本
+    serializeTasksJSON(options?: { pretty?: boolean; max?: number; relativeHMS?: boolean }): string {
+      const pretty = options?.pretty !== false
+      const max = Number(options?.max)
+      const useRelative = options?.relativeHMS === true
+      const now = Date.now()
+      // 中文注释：按当前内存顺序取最后 N 个（通常越新的在数组末尾）
+      const raw = Number.isFinite(max) && max! > 0 ? this.tasks.slice(-Math.floor(max!)) : this.tasks
+      // 中文注释：用浅拷贝得到纯数据，必要时将时间字段转为相对时间文本
+      const arr = raw.map(t => {
+        const copy: any = { ...t }
+        if (useRelative) {
+          const keys: Array<keyof typeof copy> = ['scheduledAt', 'outdatedAt', 'createdAt', 'startedAt', 'finishedAt']
+          for (const k of keys) {
+            if (copy[k] != null && typeof copy[k] === 'number') {
+              copy[k] = formatRelativeHMS((copy[k] as number) - now)
+            }
+          }
+        }
+        return copy
+      })
+      return JSON.stringify(arr, null, pretty ? 2 : 0)
     },
 
     rehydrate(): void {
