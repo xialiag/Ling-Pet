@@ -1,3 +1,4 @@
+// 中文注释：多次点击头像的调试/示例事件处理器
 import { useConversationStore } from "../../../stores/conversation";
 import type { PetResponseItem } from "../../../types/ai";
 
@@ -38,8 +39,9 @@ function createSilentWavBlob(durationMs = 600): Blob {
   return new Blob([buffer], { type: 'audio/wav' })
 }
 
-function item(zh: string, emotionCode: number, ja = ''): PetResponseItem {
-  return { message: zh, japanese: ja, emotion: emotionCode }
+// 中文注释：仅构造中文消息项（已移除表情与日语）
+function item(zh: string): PetResponseItem {
+  return { message: zh }
 }
 
 let scenarioIndex = 0
@@ -51,19 +53,19 @@ export async function handleAvatarMultiClick(_payload: { ts: number; threshold: 
   switch (scenarioIndex) {
     case 0: {
       c.start()
-      await c.addItem(item('【S0-1】我来了，这是第一句', 1))
+      await c.addItem(item('【S0-1】我来了，这是第一句'))
       await sleep(3000)
-      await c.addItem(item('【S0-2】第二句紧跟着出现', 0))
+      await c.addItem(item('【S0-2】第二句紧跟着出现'))
       await sleep(3000)
-      await c.addItem(item('【S0-3】第三句也来了', 10))
+      await c.addItem(item('【S0-3】第三句也来了'))
       c.finish()
       break
     }
     case 1: {
       c.finish()
-      await c.addItem(item('【S1-1】非流式：看我会延时推进', 0))
-      await c.addItem(item('【S1-2】第二条（应有阅读间隔）', 13))
-      await c.addItem(item('【S1-3】第三条（仍延时推进）', 14))
+      await c.addItem(item('【S1-1】非流式：看我会延时推进'))
+      await c.addItem(item('【S1-2】第二条（应有阅读间隔）'))
+      await c.addItem(item('【S1-3】第三条（仍延时推进）'))
       break
     }
     case 2: {
@@ -71,26 +73,25 @@ export async function handleAvatarMultiClick(_payload: { ts: number; threshold: 
       c.currentMessage = '【S2-AUDIO】先听完这段假装的语音...'
       c.playAudio(createSilentWavBlob(3000))
       await sleep(200)
-      await c.addItem(item('【S2-1】音频结束后我先来', 0))
-      await c.addItem(item('【S2-2】然后到我', 1))
+      await c.addItem(item('【S2-1】音频结束后我先来'))
+      await c.addItem(item('【S2-2】然后到我'))
       c.finish()
       break
     }
     case 3: {
       c.start()
-      await c.addItem(item('【S3-1】流式开始，立即推进', 10))
-      await c.addItem(item('【S3-2】还是立即推进', 1))
+      await c.addItem(item('【S3-1】流式开始，立即推进'))
+      await c.addItem(item('【S3-2】还是立即推进'))
       c.finish()
-      await c.addItem(item('【S3-3】现在应该延时推进了', 13))
-      await c.addItem(item('【S3-4】继续延时推进', 0))
+      await c.addItem(item('【S3-3】现在应该延时推进了'))
+      await c.addItem(item('【S3-4】继续延时推进'))
       break
     }
     default: {
       c.finish()
-      await c.addItem(item('【S4-1】正常延时推进（可点头像快进）', 0))
-      await c.addItem(item('【S4-2】再来一条（同样可快进）', 0))
+      await c.addItem(item('【S4-1】正常延时推进（可点头像快进）'))
+      await c.addItem(item('【S4-2】再来一条（同样可快进）'))
       break
     }
   }
 }
-

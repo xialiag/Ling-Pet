@@ -35,7 +35,7 @@
 
 ## 核心数据结构
 - MessageItem（语义项）
-  - 字段：`message: string`、`japanese: string`、`emotion: number`
+  - 字段：`message: string`（仅中文）
 - QueueItem（播放项）
   - 基于 MessageItem，附加 `audioBlob?: Blob`、`id: string`、`createdAt: number`（可选）
 - ConversationStore（单例）
@@ -115,7 +115,6 @@ function playNext() {
   if (!next) { if (!isStreaming) currentMessage = ''; return }
 
   currentMessage = next.message
-  setEmotion(next.emotion)
   if (next.audioBlob) playAudio(next.audioBlob)
   else if (autoPlayEnabled) {
     if (isStreaming && streamImmediate) playNext() // 连续文字：紧凑推进
@@ -165,4 +164,3 @@ function finish() {
 ---
 
 以上为可迭代的目标架构。实际落地可分阶段实施：先补 `isBusy` 与策略参数，再细化 `finish/stop` 语义和 WindowManager 抽离。若需要，我可以按本文逐步提交实现 PR。
-

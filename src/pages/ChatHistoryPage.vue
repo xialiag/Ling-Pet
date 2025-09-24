@@ -11,7 +11,7 @@
         closable
         @click:close="vitsWarning = false"
       >
-        VITS服务未启用，无法播放语音
+        语音播放尚未实现（TODO）
       </v-alert>
     </transition>
     <v-container fluid class="pa-4 chat-history-container">
@@ -56,27 +56,23 @@
 
             <!-- AI消息 -->
             <div v-if="message.role === 'assistant'" class="message-row ai-message mb-4">
-              <template v-for="aiMsg in parseAIMessage(String(message.content))" :key="aiMsg.chinese + aiMsg.emotion">
+              <template v-for="aiMsg in parseAIMessage(String(message.content))" :key="aiMsg.chinese">
                 <div class="d-flex justify-start mb-3 ai-message-item">
-                  <v-avatar class="mr-3 ai-avatar" size="40">
-                    <!-- <v-img :src="getEmotionImage(aiMsg.emotion)" :alt="codeToEmotion(aiMsg.emotion)" cover /> -->
-                  </v-avatar>
-                  <v-card class="message-bubble ai-bubble" rounded="xl" :style="getEmotionStyle(aiMsg.emotion)">
+                  <v-avatar class="mr-3 ai-avatar" size="40"></v-avatar>
+                  <v-card class="message-bubble ai-bubble" rounded="xl">
                     <v-card-text class="pa-3">
                       {{ aiMsg.chinese }}
                     </v-card-text>
                   </v-card>
-                  
-                  <!-- 语音播放按钮 -->
+                  <!-- 语音播放按钮（占位，尚未实现） -->
                   <v-btn
-                    v-if="aiMsg.japanese"
                     icon
                     size="small"
                     variant="text"
                     color="primary"
                     class="ml-2 voice-btn"
                     :loading="playingIndex === `${index}-${aiMsg.chinese}`"
-                    @click="playVoice(aiMsg.japanese, `${index}-${aiMsg.chinese}`)"
+                    @click="playVoice(aiMsg.chinese, `${index}-${aiMsg.chinese}`)"
                   >
                     <v-icon size="18">mdi-volume-high</v-icon>
                   </v-btn>
@@ -136,25 +132,8 @@
                   <div class="stat-label text-caption text-grey">平均长度</div>
                 </div>
               </v-col>
-              <v-col cols="6" xs="6" sm="6" md="12">
-                <div class="stat-item text-center">
-                  <div class="stat-number text-h4 info--text">{{ mostFrequentEmotion }}</div>
-                  <div class="stat-label text-caption text-grey">常见情绪</div>
-                </div>
-              </v-col>
             </v-row>
 
-            <!-- 情绪分布 -->
-            <v-divider class="my-4"></v-divider>
-            <div class="emotion-stats">
-              <h4 class="text-subtitle-1 mb-3 text-grey-darken-1">情绪分布</h4>
-              <div class="emotion-chips">
-                <v-chip v-for="[emotion, count] in sortedEmotions" :key="emotion" class="ma-1" size="small"
-                  variant="tonal">
-                  {{ emotion }} ({{ count }})
-                </v-chip>
-              </div>
-            </div>
           </v-card-text>
         </v-card>
       </v-col>
@@ -198,49 +177,33 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
+// 中文注释：聊天记录页面，已简化为仅展示中文消息；语音播放功能保留占位（TODO: 语音未实现）
+import { computed, ref } from 'vue';
 import { useChatHistoryStore } from '../stores/chatHistory';
-import { useVitsConfigStore } from '../stores/configs/vitsConfig';
-import { getEmotionColorTheme } from '../constants/emotionColors';
-import { codeToEmotion } from '../constants/emotions';
-import { ref } from 'vue';
-import { voiceVits } from '../services/chatAndVoice/vitsService';
 import { extractItemsFromContent } from '../utils/aiResponse'
 import { ToolResultMessageContent } from '../services/tools';
 
 const chs = useChatHistoryStore();
-const vcs = useVitsConfigStore();
 
-type ParsedAIMessage = { chinese: string; japanese: string; emotion: number }
+type ParsedAIMessage = { chinese: string }
 
 function parseAIMessage(content: string): ParsedAIMessage[] {
   try {
     const items = extractItemsFromContent(content)
-    return items.map(it => ({ chinese: it.message, japanese: it.japanese, emotion: it.emotion }))
+    return items.map(it => ({ chinese: it.message }))
   } catch (e) {
     console.error('解析AI消息失败:', e)
     return []
   }
 }
 
-// 获取情绪样式
-function getEmotionStyle(emotionCode: number) {
-  const theme = getEmotionColorTheme(emotionCode);
-  return {
-    backgroundColor: theme.background,
-    borderColor: theme.border,
-    color: theme.text,
-    boxShadow: `0 2px 8px ${theme.shadow}`
-  };
-}
-
-// 计算统计数据
+// 中文注释：基础统计
 const totalMessages = computed(() => chs.chatHistory.length);
 
 const totalCharacters = computed(() => {
   return chs.chatHistory.reduce((total, msg) => {
     if (msg.role === 'user') {
-      return total + msg.content.length;
+      return total + String(msg.content).length;
     } else {
       const parsed = parseAIMessage(String(msg.content));
       return total + parsed.reduce((sum, item) => sum + item.chinese.length, 0);
@@ -253,38 +216,12 @@ const averageLength = computed(() => {
   return Math.round(totalCharacters.value / totalMessages.value);
 });
 
-const emotionCounts = computed(() => {
-  const counts: Record<string, number> = {};
-
-  chs.chatHistory.forEach(msg => {
-    if (msg.role === 'assistant') {
-      const parsed = parseAIMessage(String(msg.content));
-      parsed.forEach(item => {
-        const name = codeToEmotion(item.emotion) as string;
-        counts[name] = (counts[name] || 0) + 1;
-      });
-    }
-  });
-
-  return counts;
-});
-
-const sortedEmotions = computed(() => {
-  return Object.entries(emotionCounts.value)
-    .sort(([, a], [, b]) => b - a);
-});
-
-const mostFrequentEmotion = computed(() => {
-  const sorted = sortedEmotions.value;
-  return sorted.length > 0 ? sorted[0][0] : '无';
-});
-
 const clearDialog = ref(false);
 const deleteDialog = ref(false);
 const deleteIndex = ref(-1);
-
-const playingIndex = ref<string | null>(null);
-const vitsWarning = ref(false);
+// 中文注释：语音播放占位所需状态（TODO: 语音未实现）
+const playingIndex = ref<string | null>(null)
+const vitsWarning = ref(false)
 
 function handleClear() {
   chs.clear();
@@ -304,37 +241,13 @@ function handleDelete() {
   deleteIndex.value = -1;
 }
 
-async function playVoice(japaneseText: string, uniqueId: string) {
-  if (playingIndex.value === uniqueId) {
-    return; // 如果正在播放，则忽略
-  }
-  if (!vcs.on) {
-    vitsWarning.value = true;
-    setTimeout(() => {
-      vitsWarning.value = false;
-    }, 2500);
-    return;
-  }
-  try {
-    playingIndex.value = uniqueId;
-    // 调用VITS服务生成语音
-    const audioBlob = await voiceVits(japaneseText);
-    // 创建音频URL并播放
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    audio.onended = () => {
-      playingIndex.value = null;
-      URL.revokeObjectURL(audioUrl);
-    };
-    audio.onerror = () => {
-      playingIndex.value = null;
-      URL.revokeObjectURL(audioUrl);
-    };
-    await audio.play();
-  } catch (error) {
-    console.error('语音播放失败:', error);
-    playingIndex.value = null;
-  }
+// 中文注释：占位的语音播放函数；目前未集成TTS服务
+// TODO: 集成新的中文TTS服务后，在此实现生成并播放音频
+async function playVoice(text: string, uniqueId: string) {
+  if (playingIndex.value === uniqueId) return
+  console.warn('TODO: 语音播放尚未实现。文本：', text)
+  vitsWarning.value = true
+  setTimeout(() => { vitsWarning.value = false }, 2500)
 }
 
 </script>
@@ -511,7 +424,8 @@ async function playVoice(japaneseText: string, uniqueId: string) {
   font-weight: 500;
   letter-spacing: 1px;
 }
-/* 优化的顶部警告浮层 */
+
+/* 优化的顶部警告浮层（保留占位用于语音未实现提示） */
 .vits-warning-alert {
   position: fixed;
   top: 18px;

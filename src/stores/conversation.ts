@@ -1,11 +1,8 @@
+// 中文注释：对话队列与自动推进逻辑，已移除表情与日语TTS
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import type { PetResponseItem, PetResponseItemWithAudio } from '../types/ai'
-import { usePetStateStore } from './petState'
-import { useVitsConfigStore } from './configs/vitsConfig'
 import { useAIConfigStore } from './configs/aiConfig'
-import { getDefaultEmotionCode } from '../constants/emotions'
-import { voiceVits } from '../services/chatAndVoice/vitsService'
 import { debug } from '@tauri-apps/plugin-log'
 
 // 策略常量（可后续抽到配置）
@@ -18,8 +15,6 @@ const INACTIVITY_MAX_SEC = 300
 export const useConversationStore = defineStore('conversation', () => {
   const responseItems = ref<PetResponseItemWithAudio[]>([])
   const currentMessage = ref('')
-  const petState = usePetStateStore()
-  const vitsConfig = useVitsConfigStore()
   const aiConfig = useAIConfigStore()
 
   const isStreaming = ref(false)
@@ -90,18 +85,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function addItem(item: PetResponseItem) {
     const itemWithAudio: PetResponseItemWithAudio = { ...item }
-    if (vitsConfig.on && vitsConfig.baseURL && item.japanese) {
-      try {
-        debug(`正在为日语文本生成语音: ${item.japanese}`)
-        const audioBlob = await voiceVits(item.japanese)
-        itemWithAudio.audioBlob = audioBlob
-        debug('语音生成成功')
-      } catch (error) {
-        debug(`语音生成失败: ${error}`)
-        console.error('VITS语音生成失败:', error)
-      }
-    }
-
+    // 中文注释：已移除基于日语的自动TTS生成；仅入队中文文本
     responseItems.value.push(itemWithAudio)
     // 统一推进入口，避免分叉条件
     maybeConsume()
@@ -112,7 +96,7 @@ export const useConversationStore = defineStore('conversation', () => {
     const nextItem = responseItems.value.shift()
     if (nextItem) {
       currentMessage.value = nextItem.message
-      petState.setPetEmotion(nextItem.emotion)
+      // 中文注释：不再根据消息设置表情
       touchActivity()
 
       if (nextItem.audioBlob) {
@@ -126,7 +110,6 @@ export const useConversationStore = defineStore('conversation', () => {
       console.log('等待更多消息...')
     } else {
       currentMessage.value = ''
-      petState.setPetEmotion(getDefaultEmotionCode())
     }
   }
 
@@ -195,7 +178,6 @@ export const useConversationStore = defineStore('conversation', () => {
     }
     responseItems.value = []
     currentMessage.value = ''
-    petState.setPetEmotion(getDefaultEmotionCode())
     isStreaming.value = false
     isTooling.value = false
     abortAfterStream.value = false
