@@ -3,7 +3,6 @@ import { defineStore } from 'pinia'
 export interface MemoryState {
   /** memoryId -> memoryContent */
   memories: Record<string, string>,
-  firstLaunch: boolean, // 是否第一次启动
 }
 
 function genId() {
@@ -13,7 +12,6 @@ function genId() {
 export const useMemoryStore = defineStore('memory', {
   state: (): MemoryState => ({
     memories: {},
-    firstLaunch: true, // 是否第一次启动
   }),
   actions: {
     // 1) 读取所有记忆：返回 JSON 字符串
