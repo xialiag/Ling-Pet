@@ -104,40 +104,6 @@
       </v-col>
     </v-row>
 
-    <!-- 统计信息 -->
-    <v-row justify="center" class="mt-8">
-      <v-col cols="12" md="6" lg="4" xl="3">
-        <v-card class="stats-card" rounded="lg">
-          <v-card-title class="text-h6 font-weight-light pb-2">
-            <v-icon class="mr-2" color="primary">mdi-chart-line</v-icon>
-            聊天统计
-          </v-card-title>
-          <v-card-text>
-            <v-row>
-              <v-col cols="6" xs="6" sm="6" md="12">
-                <div class="stat-item text-center">
-                  <div class="stat-number text-h4 primary--text">{{ totalMessages }}</div>
-                  <div class="stat-label text-caption text-grey">总消息数</div>
-                </div>
-              </v-col>
-              <v-col cols="6" xs="6" sm="6" md="12">
-                <div class="stat-item text-center">
-                  <div class="stat-number text-h4 success--text">{{ totalCharacters }}</div>
-                  <div class="stat-label text-caption text-grey">总字符数</div>
-                </div>
-              </v-col>
-              <v-col cols="6" xs="6" sm="6" md="12">
-                <div class="stat-item text-center">
-                  <div class="stat-number text-h4 warning--text">{{ averageLength }}</div>
-                  <div class="stat-label text-caption text-grey">平均长度</div>
-                </div>
-              </v-col>
-            </v-row>
-
-          </v-card-text>
-        </v-card>
-      </v-col>
-    </v-row>
     <v-row class="clear-btn-bar">
       <v-btn color="error" variant="flat" @click="clearDialog = true">
         <v-icon left>mdi-delete-outline</v-icon>
@@ -178,7 +144,7 @@
 
 <script lang="ts" setup>
 // 中文注释：聊天记录页面，已简化为仅展示中文消息；语音播放功能保留占位（TODO: 语音未实现）
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useChatHistoryStore } from '../stores/chatHistory';
 import { extractItemsFromContent } from '../utils/aiResponse'
 import { ToolResultMessageContent } from '../services/tools';
@@ -196,25 +162,6 @@ function parseAIMessage(content: string): ParsedAIMessage[] {
     return []
   }
 }
-
-// 中文注释：基础统计
-const totalMessages = computed(() => chs.chatHistory.length);
-
-const totalCharacters = computed(() => {
-  return chs.chatHistory.reduce((total, msg) => {
-    if (msg.role === 'user') {
-      return total + String(msg.content).length;
-    } else {
-      const parsed = parseAIMessage(String(msg.content));
-      return total + parsed.reduce((sum, item) => sum + item.chinese.length, 0);
-    }
-  }, 0);
-});
-
-const averageLength = computed(() => {
-  if (totalMessages.value === 0) return 0;
-  return Math.round(totalCharacters.value / totalMessages.value);
-});
 
 const clearDialog = ref(false);
 const deleteDialog = ref(false);
