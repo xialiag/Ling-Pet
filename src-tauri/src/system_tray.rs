@@ -3,7 +3,7 @@ use tauri::{
     image::Image,
     menu::{MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
 const MENU_ID_SETTINGS: &str = "open-settings";
@@ -11,6 +11,7 @@ const MENU_ID_CHAT_HISTORY: &str = "open-chat-history";
 const MENU_ID_TOGGLE_MAIN: &str = "toggle-main";
 const MENU_ID_TOGGLE_DEVTOOLS: &str = "toggle-devtools";
 const MENU_ID_QUIT_APP: &str = "quit-app";
+const MENU_ID_TEST_NOTIFICATION: &str = "test-notification";
 const EVENT_TOGGLE_DEVTOOLS: &str = "lingpet://toggle-devtools";
 
 #[derive(Clone, Copy)]
@@ -53,7 +54,7 @@ impl WindowKind {
     }
 }
 
-pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .item(&MenuItem::with_id(
             app,
@@ -82,6 +83,13 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             app,
             MENU_ID_TOGGLE_DEVTOOLS,
             "切换开发者工具",
+            true,
+            None::<&str>,
+        )?)
+        .item(&MenuItem::with_id(
+            app,
+            MENU_ID_TEST_NOTIFICATION,
+            "测试通知",
             true,
             None::<&str>,
         )?)
@@ -120,6 +128,18 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                     log::error!("广播开发者工具切换事件失败: {error}");
                 }
             }
+            MENU_ID_TEST_NOTIFICATION => {
+                // 在菜单中触发一次示例通知，便于快速验证
+                let payload = crate::notification::NotificationPayload {
+                    title: "来自菜单的提示".into(),
+                    message: "这是一条用于测试的通知横幅。".into(),
+                    duration_ms: 30000,
+                    icon: None,
+                };
+                if let Err(error) = crate::notification::show_notification_with_handle(handle, payload) {
+                    log::error!("触发测试通知失败: {error}");
+                }
+            }
             MENU_ID_QUIT_APP => {
                 if let Err(error) = quit_app_with_handle(handle) {
                     log::error!("退出应用失败: {error}");
@@ -132,7 +152,7 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
-fn toggle_window<R: Runtime>(app: &AppHandle<R>, kind: WindowKind) -> tauri::Result<()> {
+fn toggle_window(app: &AppHandle, kind: WindowKind) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window(kind.label()) {
         window.close()?;
         return Ok(());
@@ -153,7 +173,7 @@ fn toggle_window<R: Runtime>(app: &AppHandle<R>, kind: WindowKind) -> tauri::Res
     Ok(())
 }
 
-fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+fn toggle_main_window(app: &AppHandle) -> tauri::Result<()> {
     if let Some(main_window) = app.get_webview_window("main") {
         if main_window.is_visible()? {
             main_window.hide()?;

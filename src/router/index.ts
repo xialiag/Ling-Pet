@@ -5,6 +5,8 @@ const MainPage = () => import('../pages/MainPage.vue')
 const SettingsPage = () => import('../pages/SettingsPage.vue')
 const ChatBubblePage = () => import('../pages/ChatBubblePage.vue')
 const ChatHistoryPage = () => import('../pages/ChatHistoryPage.vue')
+// 通知横幅页面
+const NotificationPage = () => import('../pages/NotificationPage.vue')
 
 const routes = [
   {
@@ -26,6 +28,11 @@ const routes = [
     path: '/chat-history',
     name: 'chat-history',
     component: ChatHistoryPage
+  },
+  {
+    path: '/notification',
+    name: 'notification',
+    component: NotificationPage
   }
 ]
 

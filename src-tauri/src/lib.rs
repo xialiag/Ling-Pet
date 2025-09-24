@@ -2,6 +2,7 @@
 use tauri::Manager;
 
 mod commands;
+mod notification;
 mod os;
 mod sbv2_manager;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -28,12 +29,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_pinia::init())
         .plugin(tauri_plugin_screenshots::init())
+        .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init());
 
-    #[cfg(target_os = "macos")]
-    {
-        builder = builder.plugin(tauri_nspanel::init());
-    }
+    // macOS: 不再依赖 tauri-nspanel 插件，改为在代码中直接设置窗口行为
 
     builder
         .invoke_handler(tauri::generate_handler![
@@ -41,7 +40,9 @@ pub fn run() {
             open_data_folder,
             sbv2_start,
             sbv2_stop,
-            sbv2_status
+            sbv2_status,
+            notification::show_notification,
+            notification::hide_notification
         ])
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
@@ -59,6 +60,9 @@ pub fn run() {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             system_tray::setup(&app.handle())
                 .map_err(|err| -> Box<dyn std::error::Error> { Box::new(err) })?;
+
+            // 中文注释：初始化通知窗口（隐藏且已定位），避免首次通知时再构建
+            notification::init(&app.handle()).ok();
 
             // 显式隐藏 settings 窗口（保险做法）
             // if let Some(settings_window) = app.get_webview_window("settings") {
