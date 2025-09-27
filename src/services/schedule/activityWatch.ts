@@ -7,23 +7,6 @@
 import { fetch } from '@tauri-apps/plugin-http'
 
 // ----------------------------- 类型定义 -----------------------------
-// 下方类型尽量贴近 ActivityWatch 的通用结构，字段做成可选以增强兼容性。
-export interface AWBucket {
-  // 桶 ID，例如：'aw-watcher-window_dada@macbook'
-  id: string
-  // 插件名，例如：'aw-watcher-window'
-  type?: string
-  // 桶的客户端信息
-  client?: string
-  // 创建时间
-  created?: string
-  // 最后一次更新
-  last_updated?: string
-  // 标签等元信息
-  label?: string
-  // 任意扩展字段
-  [k: string]: any
-}
 
 export interface AWEvent<T = any> {
   // 事件开始时间（ISO8601）
@@ -92,13 +75,14 @@ function withQuery(url: string, params: Record<string, any | undefined>): string
 
 // ----------------------------- API 函数 -----------------------------
 // 获取所有 buckets
-export async function listBuckets(baseURL: string = activityWatchBaseURL): Promise<AWBucket[]> {
+export async function listBuckets(baseURL: string = activityWatchBaseURL): Promise<string[]> {
   const url = `${baseURL}/api/0/buckets`
   const resp = await fetch(url, { method: 'GET' })
+  console.log('listBuckets resp', resp)
   if (!resp.ok) {
     throw new Error(`ActivityWatch listBuckets 失败：${resp.status} ${resp.statusText}`)
   }
-  return await resp.json()
+  return Object.keys(await resp.json())
 }
 
 // 获取指定 bucket 的 events，支持可选查询参数
@@ -123,33 +107,23 @@ export async function getBucketEvents(
   return await resp.json()
 }
 
-// ----------------------------- 便捷导出 -----------------------------
-// 简单的默认导出，便于按需解构或整体引入。
-const ActivityWatch = {
-  baseURL: activityWatchBaseURL,
-  listBuckets,
-  getBucketEvents,
-}
-
-export default ActivityWatch
-
 // ----------------------------- 便捷函数：最近一段时间的事件 -----------------------------
 // 该函数按“bucketId + 最近分钟数”筛选事件，优先使用服务端的 start/end 过滤，
 // 同时在客户端再次校验时间边界以保证稳健性。
 export async function getRecentEvents(
   bucketId: string,
-  pastMinutes: number,
+  pastMs: number,
   baseURL: string = activityWatchBaseURL
 ): Promise<AWRecentEvent[]> {
-  // 参数校验：bucketId 必填，pastMinutes 需为正数
+  // 参数校验：bucketId 必填，pastMs 需为正数
   if (!bucketId) throw new Error('bucketId 不能为空')
-  if (!Number.isFinite(pastMinutes) || pastMinutes <= 0) {
+  if (!Number.isFinite(pastMs) || pastMs <= 0) {
     throw new Error('pastMinutes 必须为正数')
   }
 
-  // 计算时间窗：结束为当前时间，开始为过去 N 分钟
+  // 计算时间窗：结束为当前时间，开始为过去 N 毫秒
   const end = new Date()
-  const start = new Date(end.getTime() - pastMinutes * 60 * 1000)
+  const start = new Date(end.getTime() - pastMs)
 
   // 服务端过滤：携带 start/end；适度给出较大的 limit 以覆盖常见场景
   const serverEvents = await getBucketEvents(bucketId, {
@@ -177,6 +151,28 @@ export async function getRecentEvents(
     const out: AWRecentEvent = { ...rest, relativeTime: rel }
     return out
   })
+}
+
+export async function getRecentEventsFromAllBucketsInString(
+  pastMs: number, 
+  baseURL: string = activityWatchBaseURL
+): Promise<Record<string, string>> {
+  const MAX_STRING_LENGTH = 1000
+  const buckets = await listBuckets(baseURL)
+  const results: Record<string, string> = {}
+  await Promise.all(buckets.map(async (b) => {
+    try {
+      const events = await getRecentEvents(b, pastMs, baseURL)
+      if (events.length) {
+        console.log(`Bucket ${b} 最近事件：`, events)
+        const eventsString = JSON.stringify(events)
+        results[b] = eventsString.slice(0, MAX_STRING_LENGTH) + (eventsString.length > MAX_STRING_LENGTH ? '...' : '')
+      }
+    } catch (error) {
+      console.warn(`获取 bucket ${b} 的最近事件失败：`, error)
+    }
+  }))
+  return results
 }
 
 // 将绝对时间转为中文相对时间，精确到秒：

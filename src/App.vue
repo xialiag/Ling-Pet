@@ -2,7 +2,6 @@
 import { useAppearanceConfigStore } from './stores/configs/appearanceConfig';
 import { usePetStateStore } from './stores/petState';
 import { useAIConfigStore } from './stores/configs/aiConfig';
-import { useChatHistoryStore } from './stores/chatHistory';
 import { useScreenAnalysisConfigStore } from './stores/configs/screenAnalysisConfig';
 import { useVitsConfigStore } from './stores/configs/vitsConfig';
 import { useConversationStore } from './stores/conversation';
@@ -10,6 +9,10 @@ import { onBeforeUnmount, onMounted, watch } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { denySave } from '@tauri-store/pinia';
+import { useSessionStore } from './stores/session';
+import { useNotificationStore } from './stores/notification';
+import { useMemoryStore } from './stores/memory';
+import { useScheduleStore } from './stores/schedule';
 
 const ac = useAppearanceConfigStore();
 const unlistenFns: UnlistenFn[] = [];
@@ -47,13 +50,16 @@ onMounted(async () => {
   useAppearanceConfigStore().$tauri.start();
   usePetStateStore().$tauri.start();
   useAIConfigStore().$tauri.start();
-  useChatHistoryStore().$tauri.start();
   useScreenAnalysisConfigStore().$tauri.start();
   useConversationStore().$tauri.start();
-  const vitsConfig = useVitsConfigStore();
-  vitsConfig.$tauri.start();
+  useSessionStore().$tauri.start();
+  useVitsConfigStore().$tauri.start();
+  useNotificationStore().$tauri.start();
+  useMemoryStore().$tauri.start();
+  useScheduleStore().$tauri.start();
   // 会话编排使用非持久化的会话 store（conversation），无需 denySave
   denySave('conversation');
+  denySave('notification');
 
   // 添加全局右键事件监听器
   document.addEventListener('contextmenu', handleContextMenu);

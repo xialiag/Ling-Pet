@@ -17,9 +17,8 @@
 import { ref, computed, watch, onUnmounted } from 'vue';
 import { useConversationStore } from '../../stores/conversation';
 import { storeToRefs } from 'pinia';
-import { chatWithPetStream } from '../../services/chatAndVoice/chatWithPet';
-import { callToolByName } from '../../services/tools';
 import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig';
+import { userStartChat } from '../../services/chat/frontendChat';
 
 const conversation = useConversationStore();
 const { isStreaming, isTooling } = storeToRefs(conversation);
@@ -161,18 +160,11 @@ watch(currentState, (newState: InputState, oldState: InputState) => {
 async function sendMessage() {
   const userMessage = inputMessage.value.trim();
   if (userMessage && currentState.value === InputState.IDLE) {
-    if (userMessage.startsWith('/')) {
-      // 调用工具
-      const toolResponse = await callToolByName('addNotification', ['2', userMessage.replace('/', '')]);
-      console.log('工具调用结果:', toolResponse);
-      inputMessage.value = '';
-      return;
-    }
 
     // 立即清空输入框，这样 placeholder 就能显示
     inputMessage.value = '';
     // 启动思考动画由 isStreaming watcher 统一管理（conversation.start() 会触发 isStreaming）
-    const petResponse = await chatWithPetStream(userMessage);
+    const petResponse = await userStartChat(userMessage);
 
     if (!petResponse.success) {
       conversation.currentMessage = petResponse.error || '发生错误，请稍后再试。'

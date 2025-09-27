@@ -6,65 +6,47 @@ import Live2DAvatar from '../components/main/Live2DAvatar.vue';
 import Input from '../components/main/Input.vue';
 import DecorationsHost from '../components/main/decorations/DecorationsHost.vue';
 import { useAppearanceConfigStore } from '../stores/configs/appearanceConfig';
-import { windowListMaintainer } from '../services/screenAnalysis/windowListMaintainer';
 import { chatBubbleManager } from '../services/chatBubbleManager/chatBubbleManager';
 import { createGlobalHandlersManager } from '../services/events/globalHandlers';
 import { useVitsConfigStore } from '../stores/configs/vitsConfig.ts';
-import { startSbv2 } from '../services/chatAndVoice/sbv2Process';
-import { registerDefaultTools } from '../services/tools/index.ts';
+import { startSbv2 } from '../services/voice/sbv2Process';
 import { startNoInteractionWatcher, stopNoInteractionWatcher } from '../services/interactions/noInteractionWatcher';
-import { useMemoryStore } from '../stores/memory.ts';
-import { useHypothesesStore } from '../stores/hypotheses.ts';
 import { useScheduleStore } from '../stores/schedule.ts';
+import { useSessionStore } from '../stores/session.ts';
 
 const ac = useAppearanceConfigStore();
+const ss = useSessionStore();
 const window = getCurrentWebviewWindow();
-const { startWindowListMaintaining, stopWindowListMaintaining } = windowListMaintainer();
 const { startChatBubbleWatching, stopChatBubbleWatching } = chatBubbleManager();
 const globalHandlersManager = createGlobalHandlersManager();
 const vitsConfig = useVitsConfigStore();
 
 onMounted(async () => {
-  try {
-    useMemoryStore().$tauri.start();
-    useHypothesesStore().$tauri.start();
+  ss.currentSession = [];
+  startPetSizeWatching();
+  startChatBubbleWatching();
+  globalHandlersManager.start();
 
-    registerDefaultTools()
-    startPetSizeWatching();
-    startChatBubbleWatching();
-    globalHandlersManager.start();
-    startWindowListMaintaining();
-
-    if (vitsConfig.autoStartSbv2) {
-      startSbv2(vitsConfig.installPath);
-    }
-
-    startNoInteractionWatcher();
-
-    // 跨屏拖动在 macOS/多显示器下可能触发窗口尺寸重置为默认 200×200
-    // 这里监听窗口移动/缩放相关事件并强制按照配置尺寸恢复
-    startWindowMovementListening();
-
-    // Initialize schedule manager: restore state and start heartbeat
-    try {
-      const schedule = useScheduleStore()
-      console.log('[schedule] init: start storage + rehydrate + startHeartbeat')
-      schedule.$tauri.start()
-      schedule.rehydrate()
-      schedule.startHeartbeat()
-    } catch (e) {
-      console.error('Failed to initialize schedule manager:', e)
-    }
-  } catch (error) {
-    console.error('MainPage初始化失败:', error)
+  if (vitsConfig.autoStartSbv2) {
+    startSbv2(vitsConfig.installPath);
   }
+
+  startNoInteractionWatcher();
+
+  // 跨屏拖动在 macOS/多显示器下可能触发窗口尺寸重置为默认 200×200
+  // 这里监听窗口移动/缩放相关事件并强制按照配置尺寸恢复
+  startWindowMovementListening();
+
+  const schedule = useScheduleStore()
+  console.log('[schedule] init: rehydrate + startHeartbeat')
+  schedule.rehydrate()
+  schedule.startHeartbeat()
 });
 
 onUnmounted(() => {
   stopPetSizeWatcher?.();
   stopChatBubbleWatching();
   globalHandlersManager.stop();
-  stopWindowListMaintaining();
   stopNoInteractionWatcher();
   // 中文注释：移除窗口事件监听，避免重复绑定
   stopWindowMovementListening?.();
@@ -97,7 +79,7 @@ async function startWindowMovementListening() {
   }
   // 中文注释：在组件卸载时清理监听器
   stopWindowMovementListening = () => stops.forEach((fn) => { try { fn() } catch { } })
-  return 
+  return
 }
 
 async function setWindowToSquare() {

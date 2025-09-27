@@ -1,6 +1,6 @@
 <template>
   <v-container>
-    <v-card flat class="pa-2">
+    <!-- <v-card flat class="pa-2">
       <v-card-text>
         <v-alert type="info" variant="tonal" density="compact" class="mb-6">
           <div class="d-flex align-center">
@@ -95,72 +95,72 @@
         </div>
 
       </v-card-text>
-    </v-card>
+    </v-card> -->
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useScreenAnalysisConfigStore } from '../../stores/configs/screenAnalysisConfig';
-import { testScreenAnalysis, getScreenshotableWindows } from '../../services/screenAnalysis/screenDescription';
+// import { ref, computed } from 'vue';
+// import { useScreenAnalysisConfigStore } from '../../stores/configs/screenAnalysisConfig';
+// import { testScreenAnalysis, getScreenshotableWindows } from '../../services/screenAnalysis/screenDescription';
 
-// 默认系统提示词
-const DEFAULT_SCREEN_PROMPT = '描述此屏幕截图的内容';
+// // 默认系统提示词
+// const DEFAULT_SCREEN_PROMPT = '描述此屏幕截图的内容';
 
-// 测试相关
-const testResult = ref<{ success: boolean; message: string } | null>(null);
-const isTesting = ref(false);
+// // 测试相关
+// const testResult = ref<{ success: boolean; message: string } | null>(null);
+// const isTesting = ref(false);
 
-const sc = useScreenAnalysisConfigStore();
+// const sc = useScreenAnalysisConfigStore();
 
-const showApiKey = ref(false);
+// const showApiKey = ref(false);
 
-// 图像细节选项
-const imageDetailOptions = [
-  { title: '低 (Low)', value: 'low' },
-  { title: '高 (High)', value: 'high' },
-  { title: '自动 (Auto)', value: 'auto' }
-];
+// // 图像细节选项
+// const imageDetailOptions = [
+//   { title: '低 (Low)', value: 'low' },
+//   { title: '高 (High)', value: 'high' },
+//   { title: '自动 (Auto)', value: 'auto' }
+// ];
 
-const windowsLoading = ref(false)
-const windowMenuOpen = ref(false)
-const selectedWindowIds = ref<number[]>([])
-const windowsRaw = ref<Array<{ id: number; name: string; title: string; appName: string }>>([])
+// const windowsLoading = ref(false)
+// const windowMenuOpen = ref(false)
+// const selectedWindowIds = ref<number[]>([])
+// const windowsRaw = ref<Array<{ id: number; name: string; title: string; appName: string }>>([])
 
-const windowOptions = computed(() =>
-  windowsRaw.value.map(w => ({
-    id: w.id,
-    label: `${w.name || w.title || '未命名'} — ${w.appName || ''}`.trim(),
-  }))
-)
+// const windowOptions = computed(() =>
+//   windowsRaw.value.map(w => ({
+//     id: w.id,
+//     label: `${w.name || w.title || '未命名'} — ${w.appName || ''}`.trim(),
+//   }))
+// )
 
-async function refreshWindowsOptions() {
-  try {
-    windowsLoading.value = true
-    const list = await getScreenshotableWindows()
-    // 直接使用返回值作为选项来源
-    windowsRaw.value = Array.isArray(list) ? list : []
-  } catch (e) {
-    windowsRaw.value = []
-  } finally {
-    windowsLoading.value = false
-  }
-}
+// async function refreshWindowsOptions() {
+//   try {
+//     windowsLoading.value = true
+//     const list = await getScreenshotableWindows()
+//     // 直接使用返回值作为选项来源
+//     windowsRaw.value = Array.isArray(list) ? list : []
+//   } catch (e) {
+//     windowsRaw.value = []
+//   } finally {
+//     windowsLoading.value = false
+//   }
+// }
 
-function onWindowMenuUpdate(open: boolean) {
-  windowMenuOpen.value = open
-  if (open) {
-    refreshWindowsOptions()
-  }
-}
+// function onWindowMenuUpdate(open: boolean) {
+//   windowMenuOpen.value = open
+//   if (open) {
+//     refreshWindowsOptions()
+//   }
+// }
 
-// 测试连接
-async function testConnection() {
-  isTesting.value = true;
-  const result = await testScreenAnalysis(selectedWindowIds.value);
-  isTesting.value = false;
-  testResult.value = result;
-}
+// // 测试连接
+// async function testConnection() {
+//   isTesting.value = true;
+//   const result = await testScreenAnalysis(selectedWindowIds.value);
+//   isTesting.value = false;
+//   testResult.value = result;
+// }
 </script>
 
 <style scoped>

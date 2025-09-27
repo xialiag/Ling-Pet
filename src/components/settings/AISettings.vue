@@ -116,7 +116,8 @@
 import { ref  } from 'vue';
 import { DEFAULT_CHARACTER_PROMPT } from '../../constants/ai';
 import { useAIConfigStore } from '../../stores/configs/aiConfig';
-import { testAIConnection } from '../../services/chatAndVoice/aiService';
+import { generateText } from 'ai';
+import { createDeepSeek } from '@ai-sdk/deepseek';
 
 // 测试相关
 const testResult = ref<{ success: boolean; message: string } | null>(null);
@@ -126,6 +127,21 @@ const ac = useAIConfigStore();
 
 const showApiKey = ref(false);
 
+function testAIConnection() {
+  const deepseek = createDeepSeek({ apiKey: ac.apiKey, baseURL: ac.baseURL })
+  return generateText({
+    model: deepseek('deepseek-chat'),
+    messages: [
+      { role: 'system', content: '你是一个测试用的AI助手' },
+      { role: 'user', content: '说一句你好' }
+    ],
+  }).then(() => {
+    return { success: true, message: '连接成功！' }
+  }).catch((error) => {
+    console.error('测试连接失败:', error)
+    return { success: false, message: `连接失败：${error.message || error}` }
+  })
+}
 
 // 测试连接
 async function testConnection() {

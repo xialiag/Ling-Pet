@@ -3,17 +3,28 @@ import { onTask } from '../services/schedule/onTask'
 import { onOutdated } from '../services/schedule/onOutdated'
 import { useConversationStore } from './conversation'
 import { emitScheduleIdle } from '../services/events/emitters'
+import { useSessionStore } from './session'
+import { backendChat } from '../services/chat/backendChat'
+import { getBackendEventsUserPrompt } from '../services/chat/prompts'
 
 type TaskStatus = 'scheduled' | 'pending' | 'running' | 'outdated' | 'accomplished' | 'canceled'
+const DEFAULT_HEARTBEAT_MS = 60000
 
 export interface ScheduleTaskResult {
   type: 'executed' | 'outdated' | 'canceled'
   error?: string
 }
 
+export interface ScheduleTaskContent {
+  title: string
+  motivation: string
+  plan: string
+  expectedOutcome: string
+}
+
 export interface ScheduleTask {
   id: string
-  prompt: string
+  content: ScheduleTaskContent
   scheduledAt: number // 计划执行时间（ms）
   outdatedAt?: number // 过期时间（ms）
   createdAt: number
@@ -26,8 +37,6 @@ export interface ScheduleTask {
 function genId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
-
-const DEFAULT_HEARTBEAT_MS = 15000
 
 // 中文注释：将毫秒差值格式化为“X小时Y分Z秒前/后”的相对时间文本
 function formatRelativeHMS(deltaMs: number): string {
@@ -51,22 +60,29 @@ export const useScheduleStore = defineStore('schedule', {
     heartbeatTimerId: null as number | null,
     heartbeatIntervalMs: DEFAULT_HEARTBEAT_MS as number,
     maxTasksPerBeat: 1 as number,
+    // 中文注释：是否在应用初始化（调用 rehydrate 后）自动启动心跳
+    HeartbeatOn: true as boolean,
   }),
+  // 中文注释：新增 getters，提供心跳运行状态的便捷访问
+  getters: {
+    // 中文注释：当前心跳是否正在运行
+    heartbeatRunning: (state): boolean => state.heartbeatTimerId != null,
+    getHeartbeatOn: (state): boolean => state.HeartbeatOn,
+  },
   actions: {
-    addSchedule(delayMs: number, prompt: string, options?: { outdatedInMs?: number }): string {
+    addSchedule(delayMs: number, content: ScheduleTaskContent, options?: { outdatedInMs?: number }): string {
       const now = Date.now()
       const scheduledAt = now + Math.max(0, Math.floor(delayMs || 0))
       const outdatedAt = options?.outdatedInMs != null ? scheduledAt + Math.max(0, Math.floor(options.outdatedInMs)) : undefined
       const task: ScheduleTask = {
         id: genId(),
-        prompt,
+        content,
         scheduledAt,
         outdatedAt,
         createdAt: now,
         status: 'scheduled',
       }
       this.tasks.push(task)
-      console.log('[schedule] addSchedule', { id: task.id, prompt, scheduledAt, outdatedAt, now })
       return task.id
     },
 
@@ -84,9 +100,7 @@ export const useScheduleStore = defineStore('schedule', {
     deleteSchedule(id: string): boolean {
       const idx = this.tasks.findIndex(t => t.id === id)
       if (idx < 0) return false
-      const removed = this.tasks[idx]
       this.tasks.splice(idx, 1)
-      console.log('[schedule] deleteSchedule', { id, removedStatus: removed?.status })
       return true
     },
 
@@ -117,6 +131,10 @@ export const useScheduleStore = defineStore('schedule', {
     rehydrate(): void {
       this.isBusy = false
       const now = Date.now()
+      if (this.heartbeatTimerId != null) {
+        clearTimeout(this.heartbeatTimerId)
+        this.heartbeatTimerId = null
+      }
       for (const t of this.tasks) {
         if (t.status === 'running' && !t.finishedAt) {
           // 将悬挂的 running 任务重置，避免卡死
@@ -133,28 +151,51 @@ export const useScheduleStore = defineStore('schedule', {
     },
 
     startHeartbeat(): void {
-      if (this.heartbeatTimerId != null) return
-      const id = window.setInterval(() => this._heartbeatSafe(), this.heartbeatIntervalMs)
-      this.heartbeatTimerId = id
+      if (this.heartbeatTimerId != null) {
+        console.log('[schedule] heartbeat already running')
+        return
+      }
+      this._heartbeatSafe() // 立即执行一次
       console.log('[schedule] heartbeat started', { intervalMs: this.heartbeatIntervalMs })
     },
 
     stopHeartbeat(): void {
       if (this.heartbeatTimerId != null) {
-        clearInterval(this.heartbeatTimerId)
+        clearTimeout(this.heartbeatTimerId)
         this.heartbeatTimerId = null
         console.log('[schedule] heartbeat stopped')
       }
     },
 
+    // 中文注释：设置心跳间隔（毫秒）。可选 restart=true 时若心跳正在运行则重启定时器
+    setHeartbeatInterval(ms: number): void {
+      // 中文注释：限制最小/最大范围，避免设置过小导致频繁执行或过大失去意义
+      const clamped = Math.min(60 * 60 * 1000, Math.max(1000, Math.floor(ms))) // 1s ~ 1h
+      if (clamped !== this.heartbeatIntervalMs) {
+        this.heartbeatIntervalMs = clamped
+        console.log('[schedule] heartbeat interval updated', { intervalMs: clamped })
+      }
+    },
+
+    // 中文注释：设置是否自动启动心跳；若从 false -> true 且当前未运行，则启动；若从 true -> false 则停止
+    setHeartbeatOn(val: boolean): void {
+      this.HeartbeatOn = val
+      console.log('[schedule] HeartbeatOn set', { value: this.HeartbeatOn })
+    },
+
     _heartbeatSafe(): void {
       try {
         // console.log('[schedule] heartbeat tick', { now: Date.now() })
-        this._heartbeat()
+        if (this.HeartbeatOn) {
+          this._heartbeat()
+        } else {
+          console.log('[schedule] heartbeat skipped because HeartbeatOn is false')
+        }
       } catch (e) {
         // 避免异常中断心跳循环
         console.error('schedule heartbeat error:', e)
       }
+      this.heartbeatTimerId = window.setTimeout(() => this._heartbeatSafe(), this.heartbeatIntervalMs)
     },
 
     _heartbeat(): void {
@@ -177,9 +218,10 @@ export const useScheduleStore = defineStore('schedule', {
       if (!hasFutureTasks) {
         emitScheduleIdle({ ts: now }).catch(err => console.warn('[schedule] emit SCHEDULE_IDLE failed', err))
       }
-
-      if (this.isBusy) {
-        console.log('[schedule] busy, skip this tick')
+      
+      // 仅当不忙且当前没有活跃session才尝试执行任务
+      if (this.isBusy || useSessionStore().currentSession.length !== 0) {
+        console.log('[schedule] busy, skip this tick: ',{ isBusy: this.isBusy, currentSessionLength: useSessionStore().currentSession.length })
         return
       }
 
@@ -203,7 +245,8 @@ export const useScheduleStore = defineStore('schedule', {
       const candidate = this._pickOne(now)
       if (!candidate) {
         // const stats = this._stats()
-        // console.log('[schedule] no candidate to run', stats)
+        console.log('[schedule] no candidate to run, then start backendChat')
+        backendChat(getBackendEventsUserPrompt())
         return
       }
 
@@ -211,7 +254,7 @@ export const useScheduleStore = defineStore('schedule', {
       this.isBusy = true
       candidate.status = 'running'
       candidate.startedAt = now
-      console.log('[schedule] run start', {
+      console.log('[schedule] run start', candidate.content.title, {
         id: candidate.id,
         status: 'running',
         scheduledAt: candidate.scheduledAt,
@@ -222,12 +265,12 @@ export const useScheduleStore = defineStore('schedule', {
       ;(async () => {
         try {
           if (candidate.outdatedAt != null && candidate.outdatedAt <= Date.now()) {
-            console.log('[schedule] invoking onOutdated', { id: candidate.id })
-            await onOutdated(candidate.prompt, { scheduledAt: candidate.scheduledAt, outdatedAt: candidate.outdatedAt })
+            console.log('[schedule] invoking onOutdated', candidate.content.title)
+            await onOutdated(candidate.content, { scheduledAt: candidate.scheduledAt, outdatedAt: candidate.outdatedAt })
             candidate.result = { type: 'outdated' }
           } else {
-            console.log('[schedule] invoking onTask', { id: candidate.id })
-            await onTask(candidate.prompt)
+            console.log('[schedule] invoking onTask', candidate.content.title)
+            await onTask(candidate.content)
             candidate.result = { type: 'executed' }
           }
         } catch (err: any) {
@@ -236,7 +279,7 @@ export const useScheduleStore = defineStore('schedule', {
         } finally {
           candidate.finishedAt = Date.now()
           candidate.status = 'accomplished'
-          console.log('[schedule] run finish', {
+          console.log('[schedule] run finish', candidate.content.title, {
             id: candidate.id,
             result: candidate.result,
             durationMs: (candidate.finishedAt ?? 0) - (candidate.startedAt ?? 0),

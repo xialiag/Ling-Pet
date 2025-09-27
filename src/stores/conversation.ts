@@ -1,7 +1,7 @@
 // 中文注释：对话队列与自动推进逻辑，已移除表情与日语TTS
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import type { PetResponseItem, PetResponseItemWithAudio } from '../types/ai'
+import type { PetResponseItem } from '../types/ai'
 import { useAIConfigStore } from './configs/aiConfig'
 import { debug } from '@tauri-apps/plugin-log'
 
@@ -11,6 +11,10 @@ const POST_DELAY_MS = 2000 // 非流式期文字推进延迟
 // 空闲超时改为从配置获取（单位：秒），此处仅保留一个最小/最大边界与换算
 const INACTIVITY_MIN_SEC = 15
 const INACTIVITY_MAX_SEC = 300
+
+interface PetResponseItemWithAudio extends PetResponseItem {
+  audioBlob?: Blob;
+}
 
 export const useConversationStore = defineStore('conversation', () => {
   const responseItems = ref<PetResponseItemWithAudio[]>([])
