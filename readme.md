@@ -1,5 +1,7 @@
 # 运行
 
+目前只适配了macOS。
+
 首先确保有cargo和pnpm。然后：
 ```zsh
 pnpm install
