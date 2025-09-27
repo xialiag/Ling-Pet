@@ -3,11 +3,11 @@ import { useMemoryStore } from "../../stores/memory"
 import { getRecentEventsFromAllBucketsInString } from "../schedule/activityWatch"
 import { ScheduleTaskContent, useScheduleStore } from "../../stores/schedule"
 
-const basicCharacterSettings = `## Character
+export const basicCharacterSettings = `## Character
 #### 基本设定（粗略）
 
-名称：明乃
-设定：一个AI女仆
+名称：Deepseek
+设定：一个AI助手
 其它：居住在用户的电脑里面。`
 
 export function getFrontendPromptBase(): string {

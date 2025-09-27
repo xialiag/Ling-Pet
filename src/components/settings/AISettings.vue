@@ -84,16 +84,16 @@
         <v-divider class="my-8"></v-divider>
 
         <div class="mb-8">
-          <div class="d-flex justify-space-between align-center mb-4">
+          <!-- <div class="d-flex justify-space-between align-center mb-4">
             <h2 class="text-h6 font-weight-bold">系统设置</h2>
-            <v-btn variant="text" size="small" @click="ac.characterPrompt = DEFAULT_CHARACTER_PROMPT;">
+            <v-btn variant="text" size="small" @click="ac.characterPrompt = basicCharacterSettings;">
               重置为默认
             </v-btn>
           </div>
           <v-divider class="mb-6"></v-divider>
 
           <v-textarea v-model="ac.characterPrompt" label="系统提示词" variant="outlined" rows="6" auto-grow
-            hint="定义宠物的性格和行为规则" persistent-hint></v-textarea>
+            hint="定义宠物的性格和行为规则" persistent-hint></v-textarea> -->
         </div>
 
         <v-divider class="my-8"></v-divider>
@@ -114,7 +114,6 @@
 
 <script setup lang="ts">
 import { ref  } from 'vue';
-import { DEFAULT_CHARACTER_PROMPT } from '../../constants/ai';
 import { useAIConfigStore } from '../../stores/configs/aiConfig';
 import { generateText } from 'ai';
 import { createDeepSeek } from '@ai-sdk/deepseek';
