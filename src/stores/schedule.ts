@@ -61,7 +61,7 @@ export const useScheduleStore = defineStore('schedule', {
     heartbeatIntervalMs: DEFAULT_HEARTBEAT_MS as number,
     maxTasksPerBeat: 1 as number,
     // 中文注释：是否在应用初始化（调用 rehydrate 后）自动启动心跳
-    HeartbeatOn: true as boolean,
+    HeartbeatOn: false as boolean,
   }),
   // 中文注释：新增 getters，提供心跳运行状态的便捷访问
   getters: {
