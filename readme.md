@@ -2,7 +2,9 @@
 
 目前只适配了macOS。
 
-首先确保有cargo和pnpm。然后：
+1. 安装[ActivityWatch](https://github.com/ActivityWatch/activitywatch/releases/tag/v0.13.2)
+
+2. 确保有cargo和pnpm。然后：
 ```zsh
 pnpm install
 pnpm tauri dev
