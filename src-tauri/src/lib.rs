@@ -10,6 +10,10 @@ mod system_tray;
 use commands::*;
 use sbv2_manager::Sbv2Manager;
 
+// 只在 macOS 平台上引入 tauri_nspanel
+#[cfg(target_os = "macos")]
+use tauri_nspanel;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
@@ -45,7 +49,11 @@ pub fn run() {
         .plugin(tauri_plugin_screenshots::init())
         .plugin(tauri_plugin_shell::init());
 
-    // macOS: 不再依赖 tauri-nspanel 插件，改为在代码中直接设置窗口行为
+    // 只在 macOS 平台上添加 tauri_nspanel 插件
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.plugin(tauri_nspanel::init());
+    }
 
     builder
         .invoke_handler(tauri::generate_handler![
