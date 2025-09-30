@@ -43,7 +43,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_pinia::init())
         .plugin(tauri_plugin_screenshots::init())
-        .plugin(tauri_nspanel::init())
         .plugin(tauri_plugin_shell::init());
 
     // macOS: 不再依赖 tauri-nspanel 插件，改为在代码中直接设置窗口行为

@@ -98,7 +98,7 @@ pub fn request_screen_recording_permission() {
 
 /// 在非 macOS 平台上的空实现
 #[cfg(not(target_os = "macos"))]
-pub fn setup_app<R: Runtime>(_app: &AppHandle<R>) {
+pub fn setup_app<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) {
     // 在非 macOS 平台上什么都不做
 }
 
