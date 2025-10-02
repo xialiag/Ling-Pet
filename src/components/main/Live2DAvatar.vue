@@ -13,27 +13,9 @@
     
     <div v-if="!isReady" class="avatar-loading" :class="borderClass">
       <div v-if="loadError" class="error-message">
-        <div class="error-icon">⚠️</div>
         <div class="error-text">{{ loadError }}</div>
-        <div class="error-hint">
-          <div>请尝试以下解决方案：</div>
-          <ul class="error-solutions">
-            <li>检查模型文件是否完整</li>
-            <li>重新导入模型</li>
-            <li>选择其他可用模型</li>
-          </ul>
-        </div>
-        <button 
-          v-if="ac.currentModel" 
-          @click="retryLoadModel" 
-          class="retry-button"
-          :disabled="retrying"
-        >
-          {{ retrying ? '重试中...' : '重试加载' }}
-        </button>
       </div>
       <div v-else-if="!ac.hasAvailableModels" class="no-models-message">
-        <div class="no-models-icon">📁</div>
         <div class="no-models-text">暂无可用模型</div>
         <div class="no-models-hint">请在设置中导入Live2D模型</div>
       </div>
@@ -101,7 +83,6 @@ const live2dContainer = ref<HTMLDivElement>();
 const live2dCanvas = ref<HTMLCanvasElement>();
 const isReady = ref(false);
 const loadError = ref<string | null>(null);
-const retrying = ref(false);
 
 const borderClass = computed(() => (ac.live2dBorderType === 'circle' ? 'circle-border' : 'no-border'));
 
@@ -114,6 +95,7 @@ const thinkingBubbleStyle = computed(() => {
 
 let pixiApp: PIXI.Application | null = null;
 let live2dModel: Live2DModel | null = null;
+let initRetryCount = 0;
 
 /* -------------------------------------------------------------------------- */
 /* Utilities and Live2D helpers                                                */
@@ -207,9 +189,26 @@ async function initLive2D() {
     loadError.value = null;
     await ensureCubismCore();
 
+    // 等待容器完全渲染
+    await nextTick();
+    
+    // 确保容器有有效的尺寸
     const containerRect = live2dContainer.value.getBoundingClientRect();
-    const canvasWidth = containerRect.width || 300;
-    const canvasHeight = containerRect.height || 300;
+    if (containerRect.width === 0 || containerRect.height === 0) {
+      if (initRetryCount < 10) {
+        initRetryCount++;
+        console.warn(`Container not ready, retrying... (${initRetryCount}/10)`);
+        setTimeout(() => initLive2D(), 100);
+        return;
+      } else {
+        throw new Error('Container failed to initialize after multiple retries');
+      }
+    }
+    
+    // 重置重试计数器
+    initRetryCount = 0;
+    const canvasWidth = Math.max(containerRect.width || 300, 100);
+    const canvasHeight = Math.max(containerRect.height || 300, 100);
 
     pixiApp = new (PIXI.Application as any)({
       view: live2dCanvas.value,
@@ -218,8 +217,10 @@ async function initLive2D() {
       backgroundColor: 0x000000,
       backgroundAlpha: 0,
       antialias: true,
-      resolution: window.devicePixelRatio || 1,
+      resolution: Math.max(window.devicePixelRatio || 1, 0.5),
       autoDensity: true,
+      sharedTicker: false,
+      sharedLoader: false,
     });
 
     // 获取当前选中的模型
@@ -352,6 +353,7 @@ async function reloadModel() {
     cleanupPixiApp();
     isReady.value = false;
     loadError.value = null;
+    initRetryCount = 0;
     
     await nextTick();
     setTimeout(async () => {
@@ -365,16 +367,7 @@ async function reloadModel() {
   }
 }
 
-async function retryLoadModel() {
-  if (retrying.value) return;
-  
-  try {
-    retrying.value = true;
-    await reloadModel();
-  } finally {
-    retrying.value = false;
-  }
-}
+
 
 /* -------------------------------------------------------------------------- */
 /* Interaction handlers                                                         */
@@ -502,25 +495,27 @@ onUnmounted(() => {
 }
 
 .avatar-loading {
-  width: 100%;
-  aspect-ratio: 1 / 1;
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  max-width: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   user-select: none;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.8);
   color: #fff;
+  border-radius: 12px;
+  z-index: 10;
 }
 
-.avatar-loading.circle-border {
-  border-radius: 50%;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
-}
-
+.avatar-loading.circle-border,
 .avatar-loading.no-border {
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Error and loading states */
@@ -529,74 +524,26 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 20px;
+  gap: 6px;
+  padding: 12px 16px;
   text-align: center;
 }
 
-.error-icon, .no-models-icon {
-  font-size: 2em;
-  margin-bottom: 8px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
-}
+
 
 .error-text, .no-models-text, .loading-text {
-  font-size: 1.1em;
+  font-size: 0.9em;
   font-weight: 500;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  line-height: 1.3;
 }
 
-.error-hint, .no-models-hint {
-  font-size: 0.9em;
+.no-models-hint {
+  font-size: 0.8em;
   color: rgba(255, 255, 255, 0.8);
-  line-height: 1.4;
+  line-height: 1.3;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.error-solutions {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0 0;
-  text-align: left;
-}
-
-.error-solutions li {
-  position: relative;
-  padding-left: 16px;
-  margin-bottom: 4px;
-  font-size: 0.85em;
-}
-
-.error-solutions li::before {
-  content: '•';
-  position: absolute;
-  left: 0;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.retry-button {
-  margin-top: 12px;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  color: #fff;
-  font-size: 0.9em;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-}
-
-.retry-button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-1px);
-}
-
-.retry-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .loading-spinner {
