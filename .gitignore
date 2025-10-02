@@ -17,6 +17,7 @@ dist-ssr
 .vs/*
 .FileContentIndex/*
 .CopilotIndices/*
+.kiro/*
 !.vscode/extensions.json
 .idea
 .DS_Store

@@ -11,13 +11,46 @@
       <canvas ref="live2dCanvas" class="live2d-canvas" @mousedown="onDragStart" @click.stop="onClick"></canvas>
     </div>
     
-    <div v-if="!isReady" class="avatar-loading" :class="borderClass">Live2D加载中……</div>
+    <div v-if="!isReady" class="avatar-loading" :class="borderClass">
+      <div v-if="loadError" class="error-message">
+        <div class="error-icon">⚠️</div>
+        <div class="error-text">{{ loadError }}</div>
+        <div class="error-hint">
+          <div>请尝试以下解决方案：</div>
+          <ul class="error-solutions">
+            <li>检查模型文件是否完整</li>
+            <li>重新导入模型</li>
+            <li>选择其他可用模型</li>
+          </ul>
+        </div>
+        <button 
+          v-if="ac.currentModel" 
+          @click="retryLoadModel" 
+          class="retry-button"
+          :disabled="retrying"
+        >
+          {{ retrying ? '重试中...' : '重试加载' }}
+        </button>
+      </div>
+      <div v-else-if="!ac.hasAvailableModels" class="no-models-message">
+        <div class="no-models-icon">📁</div>
+        <div class="no-models-text">暂无可用模型</div>
+        <div class="no-models-hint">请在设置中导入Live2D模型</div>
+      </div>
+      <div v-else class="loading-message">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Live2D加载中……</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { join } from '@tauri-apps/api/path';
+import { readTextFile } from '@tauri-apps/plugin-fs';
 import * as PIXI from 'pixi.js';
 // 仅引入 Cubism4 的实现（项目中使用 model3.json）
 import { Live2DModel } from 'pixi-live2d-display/cubism4';
@@ -26,11 +59,11 @@ import { useConversationStore } from '../../stores/conversation';
 import { storeToRefs } from 'pinia';
 import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter';
 import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig';
+import { initializeLive2DModels } from '../../services/live2dModelService';
 
 /* -------------------------------------------------------------------------- */
 /* Constants & Config                                                         */
 /* -------------------------------------------------------------------------- */
-const MODEL_PATH = '/live2d/mao_pro_zh/runtime/mao_pro.model3.json';
 
 // 表情映射（将 emotion code 映射到 Live2D 表情/动作）
 const emotionToExpression: Record<number, string> = {
@@ -67,6 +100,8 @@ const appWindow = getCurrentWebviewWindow();
 const live2dContainer = ref<HTMLDivElement>();
 const live2dCanvas = ref<HTMLCanvasElement>();
 const isReady = ref(false);
+const loadError = ref<string | null>(null);
+const retrying = ref(false);
 
 const borderClass = computed(() => (ac.live2dBorderType === 'circle' ? 'circle-border' : 'no-border'));
 
@@ -75,7 +110,6 @@ const thinkingBubbleStyle = computed(() => {
   return { position: 'absolute' as const, top: '10%', left: '10%', width: '30%', height: '18%', zIndex: '2' };
 });
 
-/* expose PIXI for live2d plugin (same as before) */
 (window as any).PIXI = PIXI;
 
 let pixiApp: PIXI.Application | null = null;
@@ -101,10 +135,76 @@ async function ensureCubismCore() {
   await loadLocalScript('/live2d-core/live2dcubismcore.min.js');
 }
 
+async function processModelConfig(config: any, modelBasePath: string): Promise<any> {
+  const processedConfig = JSON.parse(JSON.stringify(config));
+  
+  const convertPath = async (path: string) => {
+    const fullPath = await join(modelBasePath, path);
+    return convertFileSrc(fullPath);
+  };
+  
+  // 处理新版本格式（model3.json）
+  const refs = processedConfig.FileReferences;
+  if (refs) {
+    if (refs.Moc) refs.Moc = await convertPath(refs.Moc);
+    if (refs.Physics) refs.Physics = await convertPath(refs.Physics);
+    if (refs.DisplayInfo) refs.DisplayInfo = await convertPath(refs.DisplayInfo);
+    
+    if (refs.Textures) {
+      for (let i = 0; i < refs.Textures.length; i++) {
+        refs.Textures[i] = await convertPath(refs.Textures[i]);
+      }
+    }
+    
+    if (refs.Motions) {
+      for (const groupName in refs.Motions) {
+        for (const motion of refs.Motions[groupName]) {
+          if (motion.File) motion.File = await convertPath(motion.File);
+          if (motion.Sound) motion.Sound = await convertPath(motion.Sound);
+        }
+      }
+    }
+    
+    if (refs.Expressions) {
+      for (const expression of refs.Expressions) {
+        if (expression.File) expression.File = await convertPath(expression.File);
+      }
+    }
+  }
+  
+  // 处理旧版本格式（model.json）
+  if (processedConfig.model) processedConfig.model = await convertPath(processedConfig.model);
+  if (processedConfig.physics) processedConfig.physics = await convertPath(processedConfig.physics);
+  
+  if (processedConfig.textures) {
+    for (let i = 0; i < processedConfig.textures.length; i++) {
+      processedConfig.textures[i] = await convertPath(processedConfig.textures[i]);
+    }
+  }
+  
+  if (processedConfig.motions) {
+    for (const groupName in processedConfig.motions) {
+      for (const motion of processedConfig.motions[groupName]) {
+        if (motion.file) motion.file = await convertPath(motion.file);
+        if (motion.sound) motion.sound = await convertPath(motion.sound);
+      }
+    }
+  }
+  
+  if (processedConfig.expressions) {
+    for (const expression of processedConfig.expressions) {
+      if (expression.file) expression.file = await convertPath(expression.file);
+    }
+  }
+  
+  return processedConfig;
+}
+
 async function initLive2D() {
   if (!live2dContainer.value || !live2dCanvas.value) return;
 
   try {
+    loadError.value = null;
     await ensureCubismCore();
 
     const containerRect = live2dContainer.value.getBoundingClientRect();
@@ -122,7 +222,28 @@ async function initLive2D() {
       autoDensity: true,
     });
 
-    live2dModel = await Live2DModel.from(MODEL_PATH, { autoInteract: false });
+    // 获取当前选中的模型
+    const currentModel = ac.currentModel;
+    if (!currentModel) {
+      throw new Error('没有可用的Live2D模型');
+    }
+
+    // 构建模型配置文件的完整路径
+    const modelConfigPath = await join(currentModel.path, currentModel.configFile);
+    
+    // 读取并修改模型配置文件，将相对路径转换为绝对路径
+    const configContent = await readTextFile(modelConfigPath);
+    const config = JSON.parse(configContent);
+    const modifiedConfig = await processModelConfig(config, currentModel.path);
+    
+    // 创建一个临时的blob URL来加载修改后的配置
+    const configBlob = new Blob([JSON.stringify(modifiedConfig)], { type: 'application/json' });
+    const configUrl = URL.createObjectURL(configBlob);
+
+    live2dModel = await Live2DModel.from(configUrl, { autoInteract: false });
+    
+    // 清理临时的blob URL
+    URL.revokeObjectURL(configUrl);
 
     if (!live2dModel || !pixiApp) {
       throw new Error('Live2D 或 PIXI 未正确初始化');
@@ -131,17 +252,16 @@ async function initLive2D() {
     updateModelScaleAndPosition();
     pixiApp.stage.addChild(live2dModel as any);
 
-    // 兼容旧版本 API：确保可交互并显示指针
     (live2dModel as any).eventMode = 'static';
     (live2dModel as any).cursor = 'pointer';
 
-    // 默认动作与表情
     playMotion('loop');
     playExpression('exp_01');
 
     isReady.value = true;
   } catch (err) {
     console.error('Live2D 初始化失败:', err);
+    loadError.value = err instanceof Error ? err.message : '模型加载失败';
     isReady.value = false;
   }
 }
@@ -201,12 +321,59 @@ function cleanupPixiApp() {
   if (pixiApp) {
     try {
       pixiApp.destroy(true, true);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
   }
   pixiApp = null;
   live2dModel = null;
+}
+
+async function initializeModels() {
+  try {
+    const models = await initializeLive2DModels();
+    ac.updateAvailableModels(models);
+    
+    if (models.length > 0 && !ac.currentModelId) {
+      ac.setCurrentModel(models[0].id);
+    }
+  } catch (error) {
+    console.error('初始化模型列表失败:', error);
+    loadError.value = error instanceof Error ? error.message : '加载模型列表失败';
+  }
+}
+
+async function reloadModel() {
+  if (!ac.currentModel) {
+    loadError.value = '没有选中的模型';
+    isReady.value = false;
+    return;
+  }
+
+  try {
+    cleanupPixiApp();
+    isReady.value = false;
+    loadError.value = null;
+    
+    await nextTick();
+    setTimeout(async () => {
+      await initLive2D();
+      setTimeout(() => resizeCanvas(), 100);
+    }, 50);
+  } catch (error) {
+    console.error('重新加载模型失败:', error);
+    loadError.value = error instanceof Error ? error.message : '重新加载失败';
+    isReady.value = false;
+  }
+}
+
+async function retryLoadModel() {
+  if (retrying.value) return;
+  
+  try {
+    retrying.value = true;
+    await reloadModel();
+  } finally {
+    retrying.value = false;
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -256,16 +423,24 @@ watch(() => ac.petSize, () => nextTick(() => resizeCanvas()));
 watch(() => [ac.live2dModelScale, ac.live2dModelPositionX, ac.live2dModelPositionY], () => nextTick(() => updateModelScaleAndPosition()));
 watch(() => ac.live2dBorderType, () => nextTick(() => resizeCanvas()));
 
+// 监听模型切换
+watch(() => ac.currentModelId, async (newModelId, oldModelId) => {
+  if (newModelId !== oldModelId && newModelId) {
+    console.log(`切换模型: ${oldModelId} -> ${newModelId}`);
+    await reloadModel();
+  }
+});
+
 onMounted(async () => {
   await nextTick();
-  // 延迟确保容器布局完成
+  await initializeModels();
+  
   setTimeout(async () => {
     await initLive2D();
     setTimeout(() => resizeCanvas(), 100);
   }, 50);
 
   window.addEventListener('resize', resizeCanvas);
-
   setTimeout(() => conversation.cancelInactivityWatch(), 6000);
 });
 
@@ -346,6 +521,96 @@ onUnmounted(() => {
 .avatar-loading.no-border {
   border-radius: 0;
   box-shadow: none;
+}
+
+/* Error and loading states */
+.error-message, .no-models-message, .loading-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  text-align: center;
+}
+
+.error-icon, .no-models-icon {
+  font-size: 2em;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.error-text, .no-models-text, .loading-text {
+  font-size: 1.1em;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.error-hint, .no-models-hint {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.error-solutions {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+  text-align: left;
+}
+
+.error-solutions li {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 4px;
+  font-size: 0.85em;
+}
+
+.error-solutions li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.retry-button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.retry-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.retry-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Thinking bubble - scales with parent */
