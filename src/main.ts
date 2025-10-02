@@ -26,4 +26,11 @@ const pinia = createPinia();
 app.use(pinia);
 pinia.use(createPlugin());
 app.use(vuetify);
+
+// 初始化插件系统
+import { initializePluginSystem } from '../pluginLoader/init'
+initializePluginSystem(app, router).then(() => {
+  console.log('[Main] 插件系统已就绪')
+})
+
 app.mount("#app");

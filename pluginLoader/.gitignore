@@ -1,0 +1,12 @@
+# 插件系统忽略文件
+
+# 生成的符号映射
+tools/symbol-map.json
+
+# 插件配置（用户数据）
+*.local.json
+
+# 临时文件
+*.tmp
+*.log
+

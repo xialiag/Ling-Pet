@@ -4,10 +4,14 @@ use tauri::Manager;
 mod commands;
 mod notification;
 mod os;
+mod plugin_config;
+mod plugin_manager;
 mod sbv2_manager;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod system_tray;
 use commands::*;
+use plugin_config::*;
+use plugin_manager::*;
 use sbv2_manager::Sbv2Manager;
 
 // 只在 macOS 平台上引入 tauri_nspanel
@@ -63,7 +67,20 @@ pub fn run() {
             sbv2_stop,
             sbv2_status,
             notification::show_notification,
-            notification::hide_notification
+            notification::hide_notification,
+            get_plugin_config,
+            set_plugin_config,
+            set_plugin_enabled,
+            open_plugin_folder,
+            plugin_check_path,
+            plugin_get_platform,
+            plugin_load_rust_library,
+            plugin_unload_rust_library,
+            plugin_install,
+            plugin_load_backend,
+            plugin_unload_backend,
+            plugin_remove_config,
+            plugin_open_directory
         ])
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
