@@ -1,5 +1,5 @@
 <template>
-  <div class="live2d-wrapper">
+  <div class="live2d-wrapper" @mousedown="onDragStart" @click.stop="onClick">
     <!-- Thinking bubble in top-left when streaming -->
     <div v-if="isStreaming" class="thinking-bubble" :style="thinkingBubbleStyle" aria-label="thinking">
       <span class="dot"></span>
@@ -8,7 +8,7 @@
     </div>
 
     <div class="live2d-container" :class="borderClass" ref="live2dContainer">
-      <canvas ref="live2dCanvas" class="live2d-canvas" @mousedown="onDragStart" @click.stop="onClick"></canvas>
+      <canvas ref="live2dCanvas" class="live2d-canvas"></canvas>
     </div>
     
     <div v-if="!isReady" class="avatar-loading" :class="borderClass">
@@ -28,419 +28,242 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, onMounted, onUnmounted, nextTick, computed } from 'vue';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { join } from '@tauri-apps/api/path';
-import { readTextFile } from '@tauri-apps/plugin-fs';
-import * as PIXI from 'pixi.js';
-// 仅引入 Cubism4 的实现（项目中使用 model3.json）
-import { Live2DModel } from 'pixi-live2d-display/cubism4';
-import { usePetStateStore } from '../../stores/petState';
-import { useConversationStore } from '../../stores/conversation';
-import { storeToRefs } from 'pinia';
-import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter';
-import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig';
-import { initializeLive2DModels } from '../../services/live2dModelService';
+import { ref, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { join, dirname } from '@tauri-apps/api/path'
+import { readTextFile } from '@tauri-apps/plugin-fs'
+import * as PIXI from 'pixi.js'
+import { Live2DModel } from 'pixi-live2d-display/cubism4'
+import { storeToRefs } from 'pinia'
+import { usePetStateStore } from '../../stores/petState'
+import { useConversationStore } from '../../stores/conversation'
+import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig'
+import { registerAvatarClick } from '../../services/interactions/avatarMultiClickEmitter'
+import { initializeLive2DModels } from '../../services/live2d/live2dModelService'
+import { ensureCubismCore, transformLive2DConfig } from '../../services/live2d/live2dConfigAdapter'
 
-/* -------------------------------------------------------------------------- */
-/* Constants & Config                                                         */
-/* -------------------------------------------------------------------------- */
+// 中文注释: 初始化 store 与窗口交互
+const state = usePetStateStore()
+const conversation = useConversationStore()
+const ac = useAppearanceConfigStore()
+const { isStreaming } = storeToRefs(conversation)
+const appWindow = getCurrentWebviewWindow()
 
-// 表情映射（将 emotion code 映射到 Live2D 表情/动作）
-const emotionToExpression: Record<number, string> = {
-  0: 'loop',
-  1: '1desk',
-  2: '5QAQ',
-  3: '8punch',
-  4: '4OAO',
-  5: '9',
-  6: '3clever',
-  7: '7keyboard',
-  8: '1desk',
-  9: '5QAQ',
-  10: '3clever',
-  11: '4OAO',
-  12: '6i gi a ri',
-  13: '2mic',
-  14: '1desk',
-  15: '3clever',
-  16: '4OAO',
-  17: '2mic',
-  18: '1desk',
-};
-
-/* -------------------------------------------------------------------------- */
-/* Stores, refs and computed                                                   */
-/* -------------------------------------------------------------------------- */
-const state = usePetStateStore();
-const conversation = useConversationStore();
-const { isStreaming } = storeToRefs(conversation);
-const ac = useAppearanceConfigStore();
-const appWindow = getCurrentWebviewWindow();
-
-const live2dContainer = ref<HTMLDivElement>();
-const live2dCanvas = ref<HTMLCanvasElement>();
-const isReady = ref(false);
-const loadError = ref<string | null>(null);
-
-const borderClass = computed(() => (ac.live2dBorderType === 'circle' ? 'circle-border' : 'no-border'));
-
+// 中文注释: 定义组件状态
+const live2dContainer = ref<HTMLDivElement>()
+const live2dCanvas = ref<HTMLCanvasElement>()
+const isReady = ref(false)
+const loadError = ref<string | null>(null)
+const borderClass = computed(() => (ac.live2dBorderType === 'circle' ? 'circle-border' : 'no-border'))
 const thinkingBubbleStyle = computed(() => {
-  if (!isStreaming.value) return { display: 'none' };
-  return { position: 'absolute' as const, top: '10%', left: '10%', width: '30%', height: '18%', zIndex: '2' };
-});
+  if (!isStreaming.value) return { display: 'none' }
+  return { position: 'absolute' as const, top: '10%', left: '10%', width: '30%', height: '18%', zIndex: '2' }
+})
 
-(window as any).PIXI = PIXI;
+// 中文注释: PIXI 应用全局引用
+let pixiApp: PIXI.Application | null = null
+let live2dModel: Live2DModel | null = null
+let resizeObserver: ResizeObserver | null = null
+;(window as any).PIXI = PIXI
 
-let pixiApp: PIXI.Application | null = null;
-let live2dModel: Live2DModel | null = null;
-let initRetryCount = 0;
-
-/* -------------------------------------------------------------------------- */
-/* Utilities and Live2D helpers                                                */
-/* -------------------------------------------------------------------------- */
-function loadLocalScript(src: string) {
-  return new Promise<void>((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error(`failed to load: ${src}`));
-    document.head.appendChild(script);
-  });
+// 中文注释: 等待容器尺寸准备
+async function waitForContainerRect(el: HTMLElement): Promise<DOMRect> {
+  for (let i = 0; i < 10; i++) {
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) return rect
+    await new Promise(resolve => requestAnimationFrame(() => resolve(undefined)))
+  }
+  throw new Error('容器尺寸未准备就绪')
 }
 
-async function ensureCubismCore() {
-  const w = window as unknown as { Live2DCubismCore?: unknown };
-  if (w.Live2DCubismCore) return;
-  await loadLocalScript('/live2d-core/live2dcubismcore.min.js');
-}
-
-async function processModelConfig(config: any, modelBasePath: string): Promise<any> {
-  const processedConfig = JSON.parse(JSON.stringify(config));
-  
-  const convertPath = async (path: string) => {
-    const fullPath = await join(modelBasePath, path);
-    return convertFileSrc(fullPath);
-  };
-  
-  // 处理新版本格式（model3.json）
-  const refs = processedConfig.FileReferences;
-  if (refs) {
-    if (refs.Moc) refs.Moc = await convertPath(refs.Moc);
-    if (refs.Physics) refs.Physics = await convertPath(refs.Physics);
-    if (refs.DisplayInfo) refs.DisplayInfo = await convertPath(refs.DisplayInfo);
-    
-    if (refs.Textures) {
-      for (let i = 0; i < refs.Textures.length; i++) {
-        refs.Textures[i] = await convertPath(refs.Textures[i]);
-      }
-    }
-    
-    if (refs.Motions) {
-      for (const groupName in refs.Motions) {
-        for (const motion of refs.Motions[groupName]) {
-          if (motion.File) motion.File = await convertPath(motion.File);
-          if (motion.Sound) motion.Sound = await convertPath(motion.Sound);
-        }
-      }
-    }
-    
-    if (refs.Expressions) {
-      for (const expression of refs.Expressions) {
-        if (expression.File) expression.File = await convertPath(expression.File);
-      }
-    }
-  }
-  
-  // 处理旧版本格式（model.json）
-  if (processedConfig.model) processedConfig.model = await convertPath(processedConfig.model);
-  if (processedConfig.physics) processedConfig.physics = await convertPath(processedConfig.physics);
-  
-  if (processedConfig.textures) {
-    for (let i = 0; i < processedConfig.textures.length; i++) {
-      processedConfig.textures[i] = await convertPath(processedConfig.textures[i]);
-    }
-  }
-  
-  if (processedConfig.motions) {
-    for (const groupName in processedConfig.motions) {
-      for (const motion of processedConfig.motions[groupName]) {
-        if (motion.file) motion.file = await convertPath(motion.file);
-        if (motion.sound) motion.sound = await convertPath(motion.sound);
-      }
-    }
-  }
-  
-  if (processedConfig.expressions) {
-    for (const expression of processedConfig.expressions) {
-      if (expression.file) expression.file = await convertPath(expression.file);
-    }
-  }
-  
-  return processedConfig;
-}
-
+// 中文注释: 初始化并渲染 Live2D 模型
 async function initLive2D() {
-  if (!live2dContainer.value || !live2dCanvas.value) return;
-
+  if (!live2dContainer.value || !live2dCanvas.value) return
   try {
-    loadError.value = null;
-    await ensureCubismCore();
-
-    // 等待容器完全渲染
-    await nextTick();
-    
-    // 确保容器有有效的尺寸
-    const containerRect = live2dContainer.value.getBoundingClientRect();
-    if (containerRect.width === 0 || containerRect.height === 0) {
-      if (initRetryCount < 10) {
-        initRetryCount++;
-        console.warn(`Container not ready, retrying... (${initRetryCount}/10)`);
-        setTimeout(() => initLive2D(), 100);
-        return;
-      } else {
-        throw new Error('Container failed to initialize after multiple retries');
-      }
+    isReady.value = false
+    loadError.value = null
+    await ensureCubismCore()
+    await nextTick()
+    const rect = await waitForContainerRect(live2dContainer.value)
+    let app = pixiApp
+    if (!app) {
+      pixiApp = new (PIXI.Application as any)({
+        view: live2dCanvas.value,
+        width: Math.max(rect.width, 100),
+        height: Math.max(rect.height, 100),
+        backgroundAlpha: 0,
+        antialias: true,
+        resolution: Math.max(window.devicePixelRatio || 1, 1),
+        autoDensity: true,
+        sharedTicker: false,
+        sharedLoader: false
+      })
+      app = pixiApp
+    } else {
+      app.renderer.resize(Math.max(rect.width, 100), Math.max(rect.height, 100))
     }
-    
-    // 重置重试计数器
-    initRetryCount = 0;
-    const canvasWidth = Math.max(containerRect.width || 300, 100);
-    const canvasHeight = Math.max(containerRect.height || 300, 100);
-
-    pixiApp = new (PIXI.Application as any)({
-      view: live2dCanvas.value,
-      width: canvasWidth,
-      height: canvasHeight,
-      backgroundColor: 0x000000,
-      backgroundAlpha: 0,
-      antialias: true,
-      resolution: Math.max(window.devicePixelRatio || 1, 0.5),
-      autoDensity: true,
-      sharedTicker: false,
-      sharedLoader: false,
-    });
-
-    // 获取当前选中的模型
-    const currentModel = ac.currentModel;
-    if (!currentModel) {
-      throw new Error('没有可用的Live2D模型');
-    }
-
-    // 构建模型配置文件的完整路径
-    const modelConfigPath = await join(currentModel.path, currentModel.configFile);
-    
-    // 读取并修改模型配置文件，将相对路径转换为绝对路径
-    const configContent = await readTextFile(modelConfigPath);
-    const config = JSON.parse(configContent);
-    const modifiedConfig = await processModelConfig(config, currentModel.path);
-    
-    // 创建一个临时的blob URL来加载修改后的配置
-    const configBlob = new Blob([JSON.stringify(modifiedConfig)], { type: 'application/json' });
-    const configUrl = URL.createObjectURL(configBlob);
-
-    live2dModel = await Live2DModel.from(configUrl, { autoInteract: false });
-    
-    // 清理临时的blob URL
-    URL.revokeObjectURL(configUrl);
-
-    if (!live2dModel || !pixiApp) {
-      throw new Error('Live2D 或 PIXI 未正确初始化');
-    }
-
-    updateModelScaleAndPosition();
-    pixiApp.stage.addChild(live2dModel as any);
-
-    (live2dModel as any).eventMode = 'static';
-    (live2dModel as any).cursor = 'pointer';
-
-    playMotion('loop');
-    playExpression('exp_01');
-
-    isReady.value = true;
-  } catch (err) {
-    console.error('Live2D 初始化失败:', err);
-    loadError.value = err instanceof Error ? err.message : '模型加载失败';
-    isReady.value = false;
-  }
-}
-
-function updateModelScaleAndPosition() {
-  if (!live2dModel || !pixiApp) return;
-  const sizeScale = ac.petSize / 200;
-  const scale = sizeScale * ac.live2dModelScale;
-  live2dModel.scale.set(scale);
-
-  const centerX = pixiApp.screen.width * ac.live2dModelPositionX;
-  const centerY = pixiApp.screen.height * ac.live2dModelPositionY;
-  live2dModel.x = centerX;
-  live2dModel.y = centerY;
-  live2dModel.anchor.set(0.5, 0.5);
-}
-
-function playMotion(motionName: string) {
-  if (!live2dModel) return;
-  try {
-    live2dModel.motion(motionName);
-  } catch (e) {
-    console.warn('动作播放失败:', motionName, e);
+    if (!app) throw new Error('PIXI 应用初始化失败')
+    const model = ac.currentModel
+    if (!model) throw new Error('没有可用的Live2D模型')
+    const configPath = await join(model.path, model.configFile)
+    const configDir = await dirname(configPath)
+    const rawConfig = await readTextFile(configPath)
+    const hydratedConfig = await transformLive2DConfig(JSON.parse(rawConfig), configDir)
+    const blob = new Blob([JSON.stringify(hydratedConfig)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
     try {
-      live2dModel.motion('loop');
-    } catch {}
+      live2dModel = await Live2DModel.from(url, { autoInteract: false })
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+    if (!live2dModel) throw new Error('Live2D 模型初始化失败')
+    updateLayout()
+    app.stage.addChild(live2dModel as any)
+    ;(live2dModel as any).eventMode = 'static'
+    ;(live2dModel as any).cursor = 'pointer'
+    isReady.value = true
+  } catch (error) {
+    console.error('Live2D 初始化失败:', error)
+    loadError.value = error instanceof Error ? error.message : '模型加载失败'
+    disposeModel()
   }
 }
 
-function playExpression(expressionName: string) {
-  if (!live2dModel) return;
-  try {
-    live2dModel.expression(expressionName);
-  } catch (err) {
-    console.warn('表情播放失败:', expressionName, err);
+// 中文注释: 根据配置更新布局
+function updateLayout() {
+  if (!pixiApp || !live2dContainer.value) return
+  const rect = live2dContainer.value.getBoundingClientRect()
+  pixiApp.renderer.resize(Math.max(rect.width, 100), Math.max(rect.height, 100))
+  if (!live2dModel) return
+  const baseScale = ac.petSize / 200
+  const scale = baseScale * ac.live2dModelScale
+  live2dModel.scale.set(scale)
+  live2dModel.anchor.set(0.5, 0.5)
+  live2dModel.x = pixiApp.screen.width * ac.live2dModelPositionX
+  live2dModel.y = pixiApp.screen.height * ac.live2dModelPositionY
+}
+
+// 中文注释: 销毁当前模型实例
+function disposeModel() {
+  if (pixiApp && live2dModel) {
+    pixiApp.stage.removeChild(live2dModel as any)
+  }
+  if (live2dModel) {
     try {
-      live2dModel.motion(expressionName);
-    } catch (e) {
-      console.warn('作为动作播放也失败:', expressionName, e);
+      live2dModel.destroy()
+    } catch (error) {
+      console.warn('销毁 Live2D 模型时出现问题:', error)
     }
   }
+  live2dModel = null
+  isReady.value = false
 }
 
-function playExpressionByEmotion(emotionCode: number) {
-  const name = emotionToExpression[emotionCode] || 'loop';
-  playExpression(name);
-}
-
-function resizeCanvas() {
-  if (!pixiApp || !live2dContainer.value) return;
-  const containerRect = live2dContainer.value.getBoundingClientRect();
-  pixiApp.renderer.resize(containerRect.width, containerRect.height);
-  updateModelScaleAndPosition();
-}
-
+// 中文注释: 清理 PIXI 应用
 function cleanupPixiApp() {
+  disposeModel()
   if (pixiApp) {
     try {
-      pixiApp.destroy(true, true);
-    } catch (e) {}
+      pixiApp.destroy(true, true)
+    } catch (error) {
+      console.warn('销毁 PIXI 应用时出现问题:', error)
+    }
   }
-  pixiApp = null;
-  live2dModel = null;
+  pixiApp = null
 }
 
+// 中文注释: 初始化模型列表数据
 async function initializeModels() {
   try {
-    const models = await initializeLive2DModels();
-    ac.updateAvailableModels(models);
-    
+    const models = await initializeLive2DModels()
+    ac.updateAvailableModels(models)
     if (models.length > 0 && !ac.currentModelId) {
-      ac.setCurrentModel(models[0].id);
+      ac.setCurrentModel(models[0].id)
     }
   } catch (error) {
-    console.error('初始化模型列表失败:', error);
-    loadError.value = error instanceof Error ? error.message : '加载模型列表失败';
+    console.error('初始化模型列表失败:', error)
+    loadError.value = error instanceof Error ? error.message : '加载模型列表失败'
   }
 }
 
+// 中文注释: 重新加载当前模型
 async function reloadModel() {
   if (!ac.currentModel) {
-    loadError.value = '没有选中的模型';
-    isReady.value = false;
-    return;
+    loadError.value = '没有选中的模型'
+    cleanupPixiApp()
+    return
   }
-
-  try {
-    cleanupPixiApp();
-    isReady.value = false;
-    loadError.value = null;
-    initRetryCount = 0;
-    
-    await nextTick();
-    setTimeout(async () => {
-      await initLive2D();
-      setTimeout(() => resizeCanvas(), 100);
-    }, 50);
-  } catch (error) {
-    console.error('重新加载模型失败:', error);
-    loadError.value = error instanceof Error ? error.message : '重新加载失败';
-    isReady.value = false;
-  }
+  disposeModel()
+  await nextTick()
+  await initLive2D()
 }
 
-
-
-/* -------------------------------------------------------------------------- */
-/* Interaction handlers                                                         */
-/* -------------------------------------------------------------------------- */
+// 中文注释: 处理桌宠窗口拖拽
 function onDragStart(e: MouseEvent) {
-  if ((e.buttons & 1) === 0) return;
-  const startX = e.clientX;
-  const startY = e.clientY;
-  let started = false;
-  const DRAG_THRESHOLD = 5;
-
-  const onMove = (ev: MouseEvent) => {
-    if (started) return;
-    const dx = ev.clientX - startX;
-    const dy = ev.clientY - startY;
+  if ((e.buttons & 1) === 0) return
+  const startX = e.clientX
+  const startY = e.clientY
+  let dragging = false
+  const DRAG_THRESHOLD = 5
+  const onMove = (event: MouseEvent) => {
+    if (dragging) return
+    const dx = event.clientX - startX
+    const dy = event.clientY - startY
     if (Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
-      started = true;
-      void appWindow.startDragging();
-      cleanup();
+      dragging = true
+      void appWindow.startDragging()
+      cleanup()
     }
-  };
-
-  const onUp = () => cleanup();
-  function cleanup() {
-    window.removeEventListener('mousemove', onMove);
-    window.removeEventListener('mouseup', onUp);
   }
-
-  window.addEventListener('mousemove', onMove);
-  window.addEventListener('mouseup', onUp, { once: true });
+  const onUp = () => cleanup()
+  const cleanup = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp, { once: true })
 }
 
+// 中文注释: 处理点击互动逻辑
 function onClick() {
-  conversation.cancelAutoPlay();
-  state.updateLastClickTimestamp();
-  conversation.playNext();
-  registerAvatarClick();
+  conversation.cancelAutoPlay()
+  state.updateLastClickTimestamp()
+  conversation.playNext()
+  registerAvatarClick()
 }
 
-/* -------------------------------------------------------------------------- */
-/* Watchers & lifecycle                                                         */
-/* -------------------------------------------------------------------------- */
-watch(() => state.currentEmotion, (v) => playExpressionByEmotion(v));
-
-watch(() => ac.petSize, () => nextTick(() => resizeCanvas()));
-watch(() => [ac.live2dModelScale, ac.live2dModelPositionX, ac.live2dModelPositionY], () => nextTick(() => updateModelScaleAndPosition()));
-watch(() => ac.live2dBorderType, () => nextTick(() => resizeCanvas()));
-
-// 监听模型切换
-watch(() => ac.currentModelId, async (newModelId, oldModelId) => {
-  if (newModelId !== oldModelId && newModelId) {
-    console.log(`切换模型: ${oldModelId} -> ${newModelId}`);
-    await reloadModel();
+// 中文注释: 监听配置变更调整布局
+watch(
+  () => [ac.petSize, ac.live2dModelScale, ac.live2dModelPositionX, ac.live2dModelPositionY],
+  () => nextTick(() => updateLayout())
+)
+watch(() => ac.live2dBorderType, () => nextTick(() => updateLayout()))
+watch(() => ac.currentModelId, async (next, prev) => {
+  if (next && next !== prev) {
+    await reloadModel()
   }
-});
+})
 
+// 中文注释: 生命周期管理
 onMounted(async () => {
-  await nextTick();
-  await initializeModels();
-  
-  setTimeout(async () => {
-    await initLive2D();
-    setTimeout(() => resizeCanvas(), 100);
-  }, 50);
-
-  window.addEventListener('resize', resizeCanvas);
-  setTimeout(() => conversation.cancelInactivityWatch(), 6000);
-});
+  await initializeModels()
+  if (ac.currentModel) {
+    await initLive2D()
+  }
+  if (live2dContainer.value) {
+    resizeObserver = new ResizeObserver(() => updateLayout())
+    resizeObserver.observe(live2dContainer.value)
+  }
+  window.setTimeout(() => conversation.cancelInactivityWatch(), 6000)
+})
 
 onUnmounted(() => {
-  window.removeEventListener('resize', resizeCanvas);
-  cleanupPixiApp();
-});
+  if (resizeObserver && live2dContainer.value) {
+    resizeObserver.unobserve(live2dContainer.value)
+    resizeObserver.disconnect()
+  }
+  cleanupPixiApp()
+})
 </script>
 
 
