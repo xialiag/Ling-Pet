@@ -4,7 +4,7 @@
 
 import type { App } from 'vue'
 import type { Router } from 'vue-router'
-import type { PluginDefinition, PluginContext, PluginMetadata, PluginMessage } from '../types/api'
+import type { PluginDefinition, PluginContext, PluginMetadata, PluginMessage, PluginSettingsAction } from '../types/api'
 import { HookEngine } from './hookEngine'
 import { PluginEventBus, safeExecute } from './pluginApi'
 import { pluginCommunication } from './pluginCommunication'
@@ -25,6 +25,7 @@ export class PluginLoader {
   private loadedPlugins = new Map<string, PluginDefinition>()
   private pluginContexts = new Map<string, PluginContext>()
   private pluginStore: any = null
+  private pluginSettingsActions = new Map<string, PluginSettingsAction[]>()
 
   /**
    * 初始化插件系统
@@ -134,12 +135,33 @@ export class PluginLoader {
    */
   private async executePluginCode(code: string, pluginId: string): Promise<PluginDefinition> {
     try {
-      // 使用Function构造器执行代码（比eval更安全）
-      // 注意：这里假设插件代码已经是编译后的 ES5/ES6 代码
+      // 处理 ES 模块导出语法
+      // 将 export{...} 转换为 module.exports
+      let processedCode = code
+
+      // 移除 sourceMappingURL 注释
+      processedCode = processedCode.replace(/\/\/# sourceMappingURL=.*/g, '')
+
+      // 处理 export{f as default} 或 export default ...
+      processedCode = processedCode.replace(/export\s*\{\s*(\w+)\s+as\s+default\s*\}\s*;?\s*$/m, 'module.exports.default = $1;')
+      processedCode = processedCode.replace(/export\s+default\s+/g, 'module.exports.default = ')
+
+      // 处理其他 export 语句
+      processedCode = processedCode.replace(/export\s*\{([^}]+)\}\s*;?/g, (_match, exports) => {
+        const exportList = exports.split(',').map((e: string) => e.trim())
+        return exportList.map((e: string) => {
+          const parts = e.split(/\s+as\s+/)
+          if (parts.length === 2) {
+            return `module.exports.${parts[1]} = ${parts[0]};`
+          }
+          return `module.exports.${e} = ${e};`
+        }).join('\n')
+      })
+
+      // 创建沙箱环境
       const moduleExports: any = {}
       const module = { exports: moduleExports }
 
-      // 创建沙箱环境
       const sandbox = {
         module,
         exports: moduleExports,
@@ -156,7 +178,7 @@ export class PluginLoader {
       const func = new Function(
         ...Object.keys(sandbox),
         `
-        ${code}
+        ${processedCode}
         return module.exports.default || module.exports;
         `
       )
@@ -227,12 +249,15 @@ export class PluginLoader {
 
       // 清理通信资源
       pluginCommunication.cleanup(pluginId)
-      
+
       // 清理组件注入
       componentInjectionManager.cleanupPlugin(pluginId)
-      
+
       // 清理LLM工具
       toolManager.cleanupPlugin(pluginId)
+
+      // 清理设置操作
+      this.pluginSettingsActions.delete(pluginId)
 
       // 卸载Rust后端
       const installedPlugin = packageManager.getPlugin(pluginId)
@@ -431,7 +456,7 @@ export class PluginLoader {
         console.log(`[Plugin ${plugin.name}] Injecting component to ${target}`)
 
         const injectionId = `${plugin.name}-${target}-${Date.now()}`
-        
+
         // 注册到组件注入管理器
         const unregister = componentInjectionManager.registerInjection({
           id: injectionId,
@@ -443,7 +468,7 @@ export class PluginLoader {
           condition: options?.condition,
           order: options?.order
         })
-        
+
         // 检查目标组件是否已注册
         const targetComponent = app.component(target)
         if (targetComponent) {
@@ -452,10 +477,10 @@ export class PluginLoader {
             targetComponent,
             target
           )
-          
+
           // 重新注册组件
           app.component(target, wrappedComponent)
-          
+
           console.log(`[Plugin ${plugin.name}] Component ${target} wrapped with injection`)
         } else {
           console.warn(`[Plugin ${plugin.name}] Target component ${target} not found, injection will be applied when component is registered`)
@@ -466,7 +491,7 @@ export class PluginLoader {
         // 返回取消注入函数
         return () => {
           unregister()
-          
+
           // 如果没有其他注入了，恢复原始组件
           const injections = componentInjectionManager.getInjections(target)
           if (injections.length === 0) {
@@ -476,7 +501,7 @@ export class PluginLoader {
               console.log(`[Plugin ${plugin.name}] All injections removed from ${target}`)
             }
           }
-          
+
           console.log(`[Plugin ${plugin.name}] Component injection removed: ${injectionId}`)
         }
       },
@@ -548,6 +573,56 @@ export class PluginLoader {
         return invoke<T>(command, args)
       },
 
+      fetch: async (url: string, options?: RequestInit): Promise<Response> => {
+        return fetch(url, options)
+      },
+
+      getAppDataDir: async (): Promise<string> => {
+        const { appDataDir } = await import('@tauri-apps/api/path')
+        return appDataDir()
+      },
+
+      fs: {
+        readDir: async (path: string) => {
+          const { readDir } = await import('@tauri-apps/plugin-fs')
+          const entries = await readDir(path)
+          return entries.map(entry => ({
+            name: entry.name,
+            isFile: entry.isFile,
+            isDirectory: entry.isDirectory
+          }))
+        },
+
+        readFile: async (path: string) => {
+          const { readTextFile } = await import('@tauri-apps/plugin-fs')
+          return readTextFile(path)
+        },
+
+        writeFile: async (path: string, content: string | Uint8Array) => {
+          const { writeFile, writeTextFile } = await import('@tauri-apps/plugin-fs')
+          if (typeof content === 'string') {
+            await writeTextFile(path, content)
+          } else {
+            await writeFile(path, content)
+          }
+        },
+
+        exists: async (path: string) => {
+          const { exists } = await import('@tauri-apps/plugin-fs')
+          return exists(path)
+        },
+
+        mkdir: async (path: string, options?: { recursive?: boolean }) => {
+          const { mkdir } = await import('@tauri-apps/plugin-fs')
+          await mkdir(path, { recursive: options?.recursive ?? false })
+        },
+
+        remove: async (path: string) => {
+          const { remove } = await import('@tauri-apps/plugin-fs')
+          await remove(path)
+        }
+      },
+
       // ========== 插件间通信API ==========
 
       on: (event: string, handler: Function) => {
@@ -596,20 +671,20 @@ export class PluginLoader {
       getSharedState: (targetPluginId: string, key: string): any => {
         return pluginCommunication.getSharedState(targetPluginId, key)
       },
-      
+
       // ========== LLM工具API ==========
-      
+
       registerTool: (tool) => {
         return toolManager.registerTool({
           ...tool,
           pluginId: plugin.name
         })
       },
-      
+
       callTool: async (name, args) => {
         return toolManager.callTool(name, args)
       },
-      
+
       getAvailableTools: () => {
         return toolManager.getTools().map(t => ({
           name: t.name,
@@ -619,6 +694,30 @@ export class PluginLoader {
           category: t.category,
           examples: t.examples
         }))
+      },
+
+      // ========== 插件设置页面API ==========
+
+      registerSettingsAction: (action: PluginSettingsAction) => {
+        const actions = this.pluginSettingsActions.get(pluginId) || []
+        actions.push(action)
+        this.pluginSettingsActions.set(pluginId, actions)
+
+        console.log(`[Plugin ${pluginId}] Registered settings action: ${action.label}`)
+
+        // 返回取消注册函数
+        return () => {
+          const currentActions = this.pluginSettingsActions.get(pluginId) || []
+          const index = currentActions.indexOf(action)
+          if (index > -1) {
+            currentActions.splice(index, 1)
+            this.pluginSettingsActions.set(pluginId, currentActions)
+          }
+        }
+      },
+
+      getSettingsActions: () => {
+        return this.pluginSettingsActions.get(pluginId) || []
       }
     }
 
@@ -637,6 +736,13 @@ export class PluginLoader {
    */
   getHookEngine(): HookEngine {
     return this.hookEngine
+  }
+
+  /**
+   * 获取插件的设置操作按钮
+   */
+  getPluginSettingsActions(pluginId: string): PluginSettingsAction[] {
+    return this.pluginSettingsActions.get(pluginId) || []
   }
 }
 

@@ -16,6 +16,9 @@ export async function initializePluginSystem(app: App, router: Router): Promise<
     // 初始化插件加载器
     await pluginLoader.initialize(app, router)
     
+    // 暴露到全局对象，供UI组件使用
+    ;(window as any).__pluginLoader = pluginLoader
+    
     // 自动加载已启用的插件
     const enabledPlugins = await getEnabledPlugins()
     if (enabledPlugins.length > 0) {

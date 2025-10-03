@@ -63,13 +63,28 @@ export class PluginPackageManager {
      */
     private async scanInstalledPlugins(): Promise<void> {
         try {
-            const entries = await readDir(this.pluginsDir)
+            await this.scanPluginDirectory(this.pluginsDir)
+        } catch (error) {
+            console.error('[PackageManager] Failed to scan plugins:', error)
+        }
+    }
+
+    /**
+     * 递归扫描插件目录
+     */
+    private async scanPluginDirectory(dirPath: string, depth: number = 0): Promise<void> {
+        // 限制递归深度，避免无限递归
+        if (depth > 3) return
+
+        try {
+            const entries = await readDir(dirPath)
 
             for (const entry of entries) {
                 if (entry.isDirectory) {
-                    const pluginPath = await join(this.pluginsDir, entry.name)
+                    const pluginPath = await join(dirPath, entry.name)
                     const manifestPath = await join(pluginPath, 'manifest.json')
 
+                    // 检查当前目录是否包含 manifest.json
                     if (await exists(manifestPath)) {
                         try {
                             const manifestContent = await readTextFile(manifestPath)
@@ -86,11 +101,14 @@ export class PluginPackageManager {
                         } catch (error) {
                             console.error(`[PackageManager] Failed to load manifest for ${entry.name}:`, error)
                         }
+                    } else {
+                        // 如果没有 manifest.json，继续递归扫描子目录
+                        await this.scanPluginDirectory(pluginPath, depth + 1)
                     }
                 }
             }
         } catch (error) {
-            console.error('[PackageManager] Failed to scan plugins:', error)
+            // 忽略无法访问的目录
         }
     }
 
@@ -167,9 +185,20 @@ export class PluginPackageManager {
             }
 
             console.log(`[PackageManager] Loading backend for ${pluginId}`)
+            console.log(`[PackageManager] Plugin path: ${plugin.path}`)
+            console.log(`[PackageManager] Backend entry: ${plugin.manifest.backend.entry}`)
 
             // 获取动态库路径
             const backendPath = await join(plugin.path, plugin.manifest.backend.entry)
+            console.log(`[PackageManager] Full backend path: ${backendPath}`)
+
+            // 检查文件是否存在
+            const fileExists = await exists(backendPath)
+            console.log(`[PackageManager] Backend file exists: ${fileExists}`)
+
+            if (!fileExists) {
+                throw new Error(`Backend file not found: ${backendPath}`)
+            }
 
             // 调用Rust后端加载动态库
             const result = await invoke<{ success: boolean; error?: string }>(

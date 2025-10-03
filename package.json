@@ -8,7 +8,14 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "cross-env RUST_BACKTRACE=1 tauri",
-    "plugin:scan": "tsx pluginLoader/tools/symbolScanner.ts"
+    "plugin:scan": "tsx pluginLoader/tools/symbolScanner.ts",
+    "plugin:build": "node pluginLoader/tools/build-all.cjs",
+    "plugin:build:watch": "node pluginLoader/tools/dev-watch.cjs",
+    "plugin:package": "node pluginLoader/tools/build-all.cjs --package",
+    "plugin:release": "node pluginLoader/tools/build-and-package.cjs",
+    "plugin:compile": "node pluginLoader/tools/compiler.cjs",
+    "plugin:clean": "node pluginLoader/tools/tasks.cjs clean",
+    "plugin:check": "node pluginLoader/tools/tasks.cjs check"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^1.0.19",
@@ -43,8 +50,12 @@
     "@types/node": "^24.6.0",
     "@types/vue": "^2.0.0",
     "@vitejs/plugin-vue": "^5.2.4",
+    "archiver": "^7.0.1",
+    "chokidar": "^4.0.3",
     "cross-env": "^10.0.0",
     "depcheck": "^1.4.7",
+    "esbuild": "^0.24.2",
+    "fs-extra": "^11.3.2",
     "tsx": "^4.20.6",
     "typescript": "~5.6.3",
     "vite": "^6.3.6",

@@ -119,17 +119,20 @@
                   <!-- 插件操作按钮 -->
                   <div class="mt-4">
                     <v-divider class="mb-4"></v-divider>
-                    <div class="d-flex gap-2">
-                      <!-- 插件特定功能 -->
+                    <div class="d-flex gap-2 flex-wrap">
+                      <!-- 插件自定义操作按钮 -->
                       <v-btn
-                        v-if="plugin.name === 'bilibili-emoji'"
-                        @click="openDownloadManager"
-                        color="primary"
-                        variant="outlined"
-                        prepend-icon="mdi-download"
+                        v-for="(action, index) in getPluginActions(plugin.name)"
+                        :key="index"
+                        @click="action.handler"
+                        :color="action.color || 'primary'"
+                        :variant="action.variant || 'outlined'"
+                        :prepend-icon="action.icon"
+                        :disabled="typeof action.disabled === 'function' ? action.disabled() : action.disabled"
+                        :loading="typeof action.loading === 'function' ? action.loading() : action.loading"
                         size="small"
                       >
-                        下载表情包
+                        {{ action.label }}
                       </v-btn>
                       
                       <!-- 卸载按钮 -->
@@ -161,6 +164,7 @@
           <div class="d-flex gap-2 flex-wrap">
             <v-btn
               @click="installPlugin"
+              :loading="installing"
               color="primary"
               prepend-icon="mdi-plus"
             >
@@ -184,17 +188,19 @@
               打开目录
             </v-btn>
           </div>
+          
+          <!-- 错误和成功消息 -->
+          <v-alert v-if="errorMessage" type="error" variant="tonal" density="compact" class="mt-4" closable @click:close="errorMessage = ''">
+            {{ errorMessage }}
+          </v-alert>
+          <v-alert v-if="successMessage" type="success" variant="tonal" density="compact" class="mt-4" closable @click:close="successMessage = ''">
+            {{ successMessage }}
+          </v-alert>
         </div>
       </v-card-text>
     </v-card>
     
-    <!-- 下载管理器对话框 -->
-    <v-dialog v-model="showDownloadManager" max-width="700">
-      <DownloadManager
-        @close="closeDownloadManager"
-        @downloaded="handleDownloaded"
-      />
-    </v-dialog>
+
   </v-container>
 </template>
 
@@ -202,7 +208,6 @@
 import { ref, onMounted, reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
-import DownloadManager from '../../../pluginLoader/plugins/bilibili-emoji/DownloadManager.vue'
 
 interface PluginInfo {
   name: string
@@ -218,7 +223,9 @@ interface PluginInfo {
 const plugins = ref<PluginInfo[]>([])
 const pluginConfigs = reactive<Record<string, Record<string, any>>>({})
 const refreshing = ref(false)
-const showDownloadManager = ref(false)
+const installing = ref(false)
+const errorMessage = ref('')
+const successMessage = ref('')
 
 // 加载插件列表
 const loadPlugins = async () => {
@@ -226,9 +233,11 @@ const loadPlugins = async () => {
     // 从全局插件加载器获取插件信息
     const pluginLoader = (window as any).__pluginLoader
     if (pluginLoader) {
-      const pluginList = pluginLoader.getPlugins()
+      // 获取所有已安装的插件（包括未加载的）
+      const pluginList = pluginLoader.getAllPlugins ? pluginLoader.getAllPlugins() : pluginLoader.getPlugins()
+      
       plugins.value = pluginList.map((p: any) => ({
-        name: p.name,
+        name: p.name || p.id,
         version: p.version,
         description: p.description,
         author: p.author,
@@ -237,6 +246,8 @@ const loadPlugins = async () => {
         error: p.error,
         configSchema: p.configSchema
       }))
+      
+      console.log('已加载插件列表:', plugins.value)
       
       // 加载每个插件的配置
       for (const plugin of plugins.value) {
@@ -253,9 +264,12 @@ const loadPlugins = async () => {
           }
         }
       }
+    } else {
+      console.warn('插件加载器未初始化')
     }
   } catch (error) {
     console.error('加载插件列表失败:', error)
+    errorMessage.value = '加载插件列表失败'
   }
 }
 
@@ -322,28 +336,14 @@ const openPluginFolder = async () => {
   }
 }
 
-// 打开下载管理器
-const openDownloadManager = () => {
-  showDownloadManager.value = true
-}
 
-// 关闭下载管理器
-const closeDownloadManager = () => {
-  showDownloadManager.value = false
-}
-
-// 下载完成后重新扫描
-const handleDownloaded = async () => {
-  const manager = (window as any).__bilibiliEmojiManager
-  if (manager) {
-    await manager.scanEmojis()
-    console.log('表情包已重新扫描')
-  }
-}
 
 // 安装插件
 const installPlugin = async () => {
   try {
+    errorMessage.value = ''
+    successMessage.value = ''
+    
     // 打开文件选择对话框
     const selected = await open({
       multiple: false,
@@ -353,24 +353,52 @@ const installPlugin = async () => {
       }]
     })
     
-    if (!selected) return
+    if (!selected) {
+      console.log('用户取消了文件选择')
+      return
+    }
     
     const zipPath = typeof selected === 'string' ? selected : (selected as any).path || selected
+    console.log('选择的插件包:', zipPath)
+    
+    installing.value = true
     
     // 调用插件加载器安装
     const pluginLoader = (window as any).__pluginLoader
-    if (pluginLoader) {
-      const success = await pluginLoader.installPlugin(zipPath)
-      if (success) {
-        console.log('插件安装成功')
-        await refreshPlugins()
-      } else {
-        console.error('插件安装失败')
-      }
+    if (!pluginLoader) {
+      errorMessage.value = '插件系统未初始化，请刷新页面后重试'
+      console.error('插件加载器未找到')
+      return
+    }
+    
+    const success = await pluginLoader.installPlugin(zipPath)
+    if (success) {
+      successMessage.value = '插件安装成功！'
+      console.log('插件安装成功')
+      await refreshPlugins()
+    } else {
+      errorMessage.value = '插件安装失败，请检查插件包格式'
+      console.error('插件安装失败')
+    }
+  } catch (error: any) {
+    errorMessage.value = `安装失败: ${error.message || '未知错误'}`
+    console.error('安装插件失败:', error)
+  } finally {
+    installing.value = false
+  }
+}
+
+// 获取插件的自定义操作按钮
+const getPluginActions = (pluginName: string) => {
+  try {
+    const pluginLoader = (window as any).__pluginLoader
+    if (pluginLoader && pluginLoader.getPluginSettingsActions) {
+      return pluginLoader.getPluginSettingsActions(pluginName)
     }
   } catch (error) {
-    console.error('安装插件失败:', error)
+    console.error('获取插件操作失败:', error)
   }
+  return []
 }
 
 // 卸载插件

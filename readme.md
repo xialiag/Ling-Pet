@@ -12,6 +12,47 @@ pnpm tauri dev
 
 之后在 设置-ai设置中填写apikey，然后在 设置-调度 中启动心跳。
 
+---
+
+## 🔧 插件开发工具
+
+本项目包含完整的插件编译打包工具链。
+
+### 快速开始
+
+```bash
+# 查看文档索引
+cat pluginLoader/tools/INDEX.md
+
+# 创建插件
+node pluginLoader/tools/plugin-cli.js create my-plugin
+
+# 开发模式（监听）
+npm run plugin:build:watch pluginLoader/plugins/my-plugin
+
+# 编译所有插件
+npm run plugin:build
+
+# 准备发布
+npm run plugin:release
+```
+
+### 文档
+- 📖 [文档索引](./pluginLoader/tools/INDEX.md) - 所有文档导航
+- ⚡ [快速入门](./pluginLoader/tools/QUICKSTART.md) - 5分钟上手
+- 📚 [完整文档](./pluginLoader/tools/README.md) - 详细说明
+- 💡 [使用示例](./pluginLoader/tools/USAGE_EXAMPLES.md) - 实际场景
+- 🎯 [命令速查](./pluginLoader/tools/CHEATSHEET.md) - 快速参考
+
+### 工具特性
+- ⚡ 极速编译（基于 esbuild）
+- 📦 自动打包（ZIP + 元数据）
+- 👀 监听模式（自动重编译）
+- 🔧 Rust 后端支持
+- 📚 完善文档
+
+---
+
 # 主动性机制（Proactivity）概览
 
 > 目标：解释项目里“角色如何主动行动 / 主动发起对话 / 主动更新自身记忆”的整条链路。本文从入口、数据结构、心跳调度、AI 推理调用、工具（tools）赋能与记忆更新六个方面，结合实际代码片段与示例说明。

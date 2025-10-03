@@ -10,3 +10,7 @@ tools/symbol-map.json
 *.tmp
 *.log
 
+
+# Example plugin backend builds
+plugins/example-*/backend/target/
+plugins/example-*/backend/Cargo.lock

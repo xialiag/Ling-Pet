@@ -49,6 +49,22 @@ export interface PluginContext {
   /** 调用Tauri命令 */
   invokeTauri: <T = any>(command: string, args?: Record<string, any>) => Promise<T>
   
+  /** HTTP 请求 */
+  fetch: (url: string, options?: RequestInit) => Promise<Response>
+  
+  /** 获取应用数据目录 */
+  getAppDataDir: () => Promise<string>
+  
+  /** 文件系统操作 */
+  fs: {
+    readDir: (path: string) => Promise<Array<{ name: string; isFile: boolean; isDirectory: boolean }>>
+    readFile: (path: string) => Promise<string>
+    writeFile: (path: string, content: string | Uint8Array) => Promise<void>
+    exists: (path: string) => Promise<boolean>
+    mkdir: (path: string, options?: { recursive?: boolean }) => Promise<void>
+    remove: (path: string) => Promise<void>
+  }
+  
   // ========== 插件间通信API ==========
   
   /** 订阅事件 */
@@ -88,6 +104,14 @@ export interface PluginContext {
   
   /** 获取所有可用工具 */
   getAvailableTools: () => ToolInfo[]
+  
+  // ========== 插件设置页面API ==========
+  
+  /** 注册设置页面操作按钮 */
+  registerSettingsAction: (action: PluginSettingsAction) => UnhookFunction
+  
+  /** 获取插件的所有设置操作 */
+  getSettingsActions: () => PluginSettingsAction[]
 }
 
 /**
@@ -159,6 +183,32 @@ export interface SharedStateOptions {
 }
 
 /**
+ * 插件设置页面操作按钮
+ */
+export interface PluginSettingsAction {
+  /** 按钮文本 */
+  label: string
+  
+  /** 按钮图标（Material Design Icons） */
+  icon?: string
+  
+  /** 按钮颜色 */
+  color?: 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'info'
+  
+  /** 按钮样式 */
+  variant?: 'elevated' | 'flat' | 'tonal' | 'outlined' | 'text' | 'plain'
+  
+  /** 点击处理函数 */
+  handler: () => Promise<void> | void
+  
+  /** 是否禁用 */
+  disabled?: boolean | (() => boolean)
+  
+  /** 是否加载中 */
+  loading?: boolean | (() => boolean)
+}
+
+/**
  * 插件定义
  */
 export interface PluginDefinition {
@@ -188,6 +238,9 @@ export interface PluginDefinition {
   
   /** 插件配置Schema（可选） */
   configSchema?: Record<string, any>
+  
+  /** 插件设置页面的自定义操作按钮 */
+  settingsActions?: PluginSettingsAction[]
 }
 
 /**
@@ -305,4 +358,119 @@ export interface ServiceSymbol {
   name: string
   path: string
   functions: string[]
+}
+
+// ========== 增强的插件加载器API ==========
+
+/**
+ * 增强的插件API - 用于新的插件加载器
+ */
+export interface PluginAPI {
+  paths: {
+    getPluginDir(): string;
+    getAssetsDir(): string;
+    getDataDir(): string;
+    getCacheDir(): string;
+    getConfigPath(): string;
+    getPluginBackend(): string;
+    getLogDir(): string;
+  };
+
+  hooks: {
+    register(hookName: string, handler: Function): void;
+    unregister(hookName: string, handler: Function): void;
+  };
+
+  components: {
+    register(name: string, component: any): void;
+    unregister(name: string): void;
+  };
+
+  tools: {
+    register(tool: ToolDefinition): void;
+    unregister(toolName: string): void;
+  };
+
+  backend: {
+    load(): Promise<any>;
+    unload(): Promise<void>;
+    getBackend(): any;
+  };
+
+  storage: {
+    get(key: string): Promise<any>;
+    set(key: string, value: any): Promise<void>;
+    delete(key: string): Promise<void>;
+    getAll(): Promise<Record<string, any>>;
+    setAll(data: Record<string, any>): Promise<void>;
+  };
+
+  ui: {
+    showNotification(message: string): void;
+    showDialog(options: any): Promise<any>;
+  };
+
+  logger: {
+    info(...args: any[]): void;
+    warn(...args: any[]): void;
+    error(...args: any[]): void;
+    debug(...args: any[]): void;
+  };
+}
+
+/**
+ * 插件上下文 - 插件实例
+ */
+export interface PluginContextV2 {
+  id: string;
+  name: string;
+  version: string;
+  activate?(): Promise<void>;
+  deactivate?(): Promise<void>;
+}
+
+/**
+ * 插件元数据 - 从package.json读取
+ */
+export interface PluginMetadataV2 {
+  id: string;
+  name: string;
+  version: string;
+  description?: string;
+  author?: string;
+  main: string;
+  capabilities: {
+    hooks?: boolean;
+    components?: boolean;
+    backend?: boolean;
+    tools?: boolean;
+  };
+  permissions: string[];
+  backend?: {
+    type: string;
+    entry: string;
+  };
+}
+
+/**
+ * 工具定义
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: Record<string, ToolParameterDef>;
+  handler: (params: any) => Promise<any>;
+  category?: string;
+  examples?: string[];
+}
+
+/**
+ * 工具参数定义
+ */
+export interface ToolParameterDef {
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description: string;
+  required?: boolean;
+  enum?: string[];
+  default?: any;
 }

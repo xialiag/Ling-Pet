@@ -49,6 +49,11 @@ impl PluginConfigManager {
     pub fn set_config(&self, plugin_name: &str, key: &str, value: Value) -> Result<(), String> {
         let config_path = self.get_plugin_config_path(plugin_name);
 
+        // 确保父目录存在
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+
         // 读取现有配置
         let mut config: HashMap<String, Value> = if config_path.exists() {
             let content = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;

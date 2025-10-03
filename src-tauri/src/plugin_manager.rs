@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginInstallResult {
     pub success: bool,
     pub plugin_id: String,
@@ -67,8 +68,9 @@ pub async fn plugin_install(
         .ok_or("Plugin ID not found in manifest")?
         .to_string();
     
-    // 创建插件目录
-    let plugin_dir = PathBuf::from(&target_dir).join(&plugin_id);
+    // 创建插件目录（将 / 替换为 - 以避免路径问题）
+    let safe_plugin_id = plugin_id.replace("/", "-").replace("@", "");
+    let plugin_dir = PathBuf::from(&target_dir).join(&safe_plugin_id);
     std::fs::create_dir_all(&plugin_dir)
         .map_err(|e| format!("Failed to create plugin directory: {}", e))?;
     
@@ -112,25 +114,14 @@ pub async fn plugin_load_backend(
     backend_path: String,
 ) -> Result<PluginCompileResult, String> {
     println!("[Rust] Loading backend for plugin: {}", plugin_id);
+    println!("[Rust] Backend path: {}", backend_path);
     
-    let backend_dir = PathBuf::from(&backend_path);
-    
-    // 根据平台确定动态库文件名
-    #[cfg(target_os = "windows")]
-    let lib_name = "plugin.dll";
-    
-    #[cfg(target_os = "macos")]
-    let lib_name = "libplugin.dylib";
-    
-    #[cfg(target_os = "linux")]
-    let lib_name = "libplugin.so";
-    
-    let lib_path = backend_dir.join(lib_name);
+    let lib_path = PathBuf::from(&backend_path);
     
     if !lib_path.exists() {
         return Ok(PluginCompileResult {
             success: false,
-            error: Some(format!("Dynamic library not found: {}", lib_name)),
+            error: Some(format!("Dynamic library not found: {}", backend_path)),
         });
     }
     
@@ -218,3 +209,5 @@ pub async fn plugin_open_directory(
     
     Ok(())
 }
+
+

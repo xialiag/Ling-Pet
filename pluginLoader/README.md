@@ -14,28 +14,56 @@
 
 ## 📚 文档
 
+### 系统文档
 - **[系统概览](../docs/plugin-system-overview.md)** - 快速了解插件系统
 - **[架构设计](../docs/plugin-architecture.md)** - 深入理解系统架构
 - **[开发指南](../docs/plugin-development-guide.md)** - 从入门到实战
 - **[后端实现](../docs/plugin-backend-implementation.md)** - Rust后端开发
-- **[流程图](../docs/plugin-flow-diagrams.md)** - 可视化流程说明
+
+### 🔧 编译打包工具
+- **[工具文档索引](./tools/INDEX.md)** - 📖 所有工具文档导航
+- **[快速入门](./tools/QUICKSTART.md)** - ⚡ 5分钟上手
+- **[完整文档](./tools/README.md)** - 📚 详细使用说明
+- **[使用示例](./tools/USAGE_EXAMPLES.md)** - 💡 实际场景示例
+- **[速查表](./tools/CHEATSHEET.md)** - 🎯 命令速查
 
 ## 🚀 快速开始
 
-### 创建插件
+### 安装依赖
 
 ```bash
-# 进入插件加载器目录
-cd pluginLoader
+npm install
+# 或
+pnpm install
+```
 
-# 创建新插件
-node tools/plugin-cli.js create my-plugin
+### 创建和开发插件
 
-# 构建插件
-node tools/plugin-cli.js build my-plugin
+```bash
+# 1. 创建新插件
+node pluginLoader/tools/plugin-cli.js create my-plugin
 
-# 验证插件
-node tools/plugin-cli.js validate my-plugin
+# 2. 启动监听模式（开发）
+npm run plugin:build:watch pluginLoader/plugins/my-plugin
+
+# 3. 在另一个终端启动应用测试
+npm run dev
+```
+
+### 编译和打包
+
+```bash
+# 编译单个插件
+npm run plugin:compile pluginLoader/plugins/my-plugin
+
+# 编译所有插件
+npm run plugin:build
+
+# 编译并打包（生成 .zip）
+npm run plugin:package
+
+# 准备发布
+npm run plugin:release
 ```
 
 ### 插件代码示例
