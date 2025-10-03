@@ -6,6 +6,7 @@ import type { App } from 'vue'
 import type { Router } from 'vue-router'
 import { pluginLoader } from './core/pluginLoader'
 import { petToolManager } from './core/petToolManager'
+import { debugConsole } from './core/debugConsole'
 
 /**
  * 初始化插件系统
@@ -20,6 +21,7 @@ export async function initializePluginSystem(app: App, router: Router): Promise<
     // 暴露到全局对象，供UI组件使用
     ;(window as any).__pluginLoader = pluginLoader
     ;(window as any).__petToolManager = petToolManager
+    ;(window as any).debug = debugConsole
     
     // 自动加载已启用的插件
     const enabledPlugins = await getEnabledPlugins()
