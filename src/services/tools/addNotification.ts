@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { showNotification } from '../notificationService'
 
 export const addNotificationTool = tool({
-  description: '在指定的时间延迟后显示右上角横幅通知。\n**NOTE**：切记，如果你要跟用户说话，请使用message，而不是这个工具。',
+  description: '在指定的时间延迟后显示右上角横幅通知。\n**important**：切记，如果你要跟用户说话，请使用message，而不是这个工具。',
   inputSchema: z.object({
     delaySeconds: z.number().min(0).describe('延迟时间，单位为秒'),
     content: z.string().min(1).describe('提醒内容'),
