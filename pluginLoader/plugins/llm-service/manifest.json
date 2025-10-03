@@ -1,0 +1,28 @@
+{
+  "id": "com.lingpet.llm-service",
+  "name": "LLM Service",
+  "version": "1.0.0",
+  "description": "为桌宠和其他插件提供LLM服务",
+  "author": "Plugin System",
+  "entry": "index.js",
+  "permissions": ["network"],
+  "dependencies": {},
+  "backend": { "enabled": false },
+  "config": {
+    "apiKey": {
+      "type": "string",
+      "default": "",
+      "description": "LLM API密钥"
+    },
+    "model": {
+      "type": "string",
+      "default": "gpt-3.5-turbo",
+      "description": "使用的模型"
+    },
+    "baseURL": {
+      "type": "string",
+      "default": "https://api.openai.com/v1",
+      "description": "API基础URL"
+    }
+  }
+}

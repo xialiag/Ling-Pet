@@ -17,7 +17,7 @@ export interface PluginContext {
   router: Router
   
   /** 获取Pinia Store */
-  getStore: <T = any>(name: string) => Store<string, any, any, any> | undefined
+  getStore: (name: string) => Store<string, any, any, any> | undefined
   
   /** Hook Vue组件 */
   hookComponent: (componentName: string, hooks: ComponentHooks) => UnhookFunction
@@ -48,6 +48,114 @@ export interface PluginContext {
   
   /** 调用Tauri命令 */
   invokeTauri: <T = any>(command: string, args?: Record<string, any>) => Promise<T>
+  
+  // ========== 插件间通信API ==========
+  
+  /** 订阅事件 */
+  on: (event: string, handler: Function) => UnhookFunction
+  
+  /** 发送事件 */
+  emit: (event: string, ...args: any[]) => void
+  
+  /** 取消订阅 */
+  off: (event: string, handler?: Function) => void
+  
+  /** 发送消息 */
+  sendMessage: (to: string | undefined, type: string, data: any) => string
+  
+  /** 监听消息 */
+  onMessage: (handler: (msg: PluginMessage) => void) => UnhookFunction
+  
+  /** 注册RPC方法 */
+  registerRPC: (method: string, handler: Function) => UnhookFunction
+  
+  /** 调用其他插件的RPC方法 */
+  callRPC: <T = any>(pluginId: string, method: string, ...params: any[]) => Promise<T>
+  
+  /** 创建共享状态 */
+  createSharedState: <T = any>(key: string, initialValue: T, options?: SharedStateOptions) => any
+  
+  /** 获取其他插件的共享状态 */
+  getSharedState: <T = any>(pluginId: string, key: string) => T | undefined
+  
+  // ========== LLM工具API ==========
+  
+  /** 注册LLM工具 */
+  registerTool: (tool: ToolRegistration) => UnhookFunction
+  
+  /** 调用工具 */
+  callTool: <T = any>(name: string, args: Record<string, any>) => Promise<ToolCallResult<T>>
+  
+  /** 获取所有可用工具 */
+  getAvailableTools: () => ToolInfo[]
+}
+
+/**
+ * 工具注册信息
+ */
+export interface ToolRegistration {
+  name: string
+  description: string
+  parameters: ToolParameter[]
+  handler: (...args: any[]) => Promise<any> | any
+  category?: string
+  examples?: string[]
+}
+
+/**
+ * 工具参数定义
+ */
+export interface ToolParameter {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  description: string
+  required?: boolean
+  enum?: string[]
+  properties?: Record<string, ToolParameter>
+  items?: ToolParameter
+}
+
+/**
+ * 工具信息
+ */
+export interface ToolInfo {
+  name: string
+  description: string
+  parameters: ToolParameter[]
+  pluginId: string
+  category?: string
+  examples?: string[]
+}
+
+/**
+ * 工具调用结果
+ */
+export interface ToolCallResult<T = any> {
+  success: boolean
+  result?: T
+  error?: string
+  duration: number
+}
+
+/**
+ * 插件消息
+ */
+export interface PluginMessage {
+  from: string
+  to?: string
+  type: string
+  data: any
+  timestamp: number
+  id: string
+  replyTo?: string
+}
+
+/**
+ * 共享状态选项
+ */
+export interface SharedStateOptions {
+  readonly?: boolean
+  persistent?: boolean
 }
 
 /**
@@ -125,6 +233,9 @@ export interface InjectOptions {
   
   /** 条件渲染 */
   condition?: () => boolean
+  
+  /** 注入顺序（数字越小越靠前） */
+  order?: number
 }
 
 /**

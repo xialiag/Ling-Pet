@@ -28,18 +28,26 @@ async function scanComponents(_dir: string): Promise<ComponentSymbol[]> {
         const content = await readFile(fullPath, 'utf-8')
         const relativePath = relative(SRC_DIR, fullPath)
         
-        // 简单的正则提取（实际应该用AST解析）
-        const propsMatch = content.match(/defineProps<\{([^}]+)\}>/s)
-        const emitsMatch = content.match(/defineEmits<\{([^}]+)\}>/s)
-        
+        // 提取组件信息
         const componentName = entry.name.replace('.vue', '')
+        
+        // 提取props
+        const propsMatch = content.match(/defineProps<\{([^}]+)\}>/s) || 
+                          content.match(/defineProps\(\{([^}]+)\}\)/s)
+        
+        // 提取emits
+        const emitsMatch = content.match(/defineEmits<\{([^}]+)\}>/s) ||
+                          content.match(/defineEmits\(\[([^\]]+)\]\)/s)
+        
+        // 提取expose
+        const exposeMatch = content.match(/defineExpose\(\{([^}]+)\}\)/s)
         
         components.push({
           name: componentName,
           path: relativePath,
           props: propsMatch ? extractNames(propsMatch[1]) : [],
-          emits: emitsMatch ? extractNames(emitsMatch[1]) : [],
-          methods: extractMethods(content),
+          emits: emitsMatch ? extractEmitNames(emitsMatch[1]) : [],
+          methods: exposeMatch ? extractNames(exposeMatch[1]) : extractMethods(content),
           computed: extractComputed(content)
         })
       }
@@ -131,6 +139,26 @@ function extractNames(text: string): string[] {
   const matches = text.matchAll(/(\w+)\s*[?:]?\s*:/g)
   for (const match of matches) {
     names.push(match[1])
+  }
+  return names
+}
+
+/**
+ * 提取emit事件名称
+ */
+function extractEmitNames(text: string): string[] {
+  const names: string[] = []
+  // 处理数组形式: ['event1', 'event2']
+  const arrayMatches = text.matchAll(/['"](\w+)['"]/g)
+  for (const match of arrayMatches) {
+    names.push(match[1])
+  }
+  // 处理对象形式: { event1: ..., event2: ... }
+  if (names.length === 0) {
+    const objectMatches = text.matchAll(/(\w+)\s*[?:]?\s*:/g)
+    for (const match of objectMatches) {
+      names.push(match[1])
+    }
   }
   return names
 }

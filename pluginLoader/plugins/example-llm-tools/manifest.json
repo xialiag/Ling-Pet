@@ -1,0 +1,13 @@
+{
+  "id": "com.example.llm-tools",
+  "name": "LLM Tools Example",
+  "version": "1.0.0",
+  "description": "演示如何注册和使用LLM工具",
+  "author": "Plugin System",
+  "entry": "index.js",
+  "permissions": [],
+  "dependencies": {
+    "llm-service": "^1.0.0"
+  },
+  "backend": { "enabled": false }
+}
