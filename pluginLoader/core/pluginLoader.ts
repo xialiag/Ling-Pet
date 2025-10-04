@@ -12,6 +12,7 @@ import { componentInjectionManager } from './componentInjection'
 import { toolManager } from './toolManager'
 import { invoke } from '@tauri-apps/api/core'
 import { load as loadTauriStore } from '@tauri-apps/plugin-store'
+import { emit, listen } from '@tauri-apps/api/event'
 import { packageManager, type PluginManifest } from './packageManager'
 
 /**
@@ -47,7 +48,45 @@ export class PluginLoader {
       console.warn('[PluginLoader] Failed to load plugin store:', error)
     }
 
+    // 设置跨窗口插件同步
+    await this.setupCrossWindowSync()
+
     console.log('[PluginLoader] Initialized')
+  }
+
+  /**
+   * 设置跨窗口插件同步
+   */
+  private async setupCrossWindowSync(): Promise<void> {
+    try {
+      // 监听插件启用事件
+      await listen('plugin:enabled', async (event: any) => {
+        const { pluginName } = event.payload
+        console.log(`[PluginLoader] Received plugin:enabled event for ${pluginName}`)
+        
+        // 如果本窗口还没加载这个插件，加载它
+        if (!this.loadedPlugins.has(pluginName)) {
+          console.log(`[PluginLoader] Loading plugin ${pluginName} in this window`)
+          await this.loadPlugin(pluginName)
+        }
+      })
+      
+      // 监听插件禁用事件
+      await listen('plugin:disabled', async (event: any) => {
+        const { pluginName } = event.payload
+        console.log(`[PluginLoader] Received plugin:disabled event for ${pluginName}`)
+        
+        // 如果本窗口加载了这个插件，卸载它
+        if (this.loadedPlugins.has(pluginName)) {
+          console.log(`[PluginLoader] Unloading plugin ${pluginName} in this window`)
+          await this.unloadPlugin(pluginName)
+        }
+      })
+      
+      console.log('[PluginLoader] Cross-window sync setup complete')
+    } catch (error) {
+      console.warn('[PluginLoader] Failed to setup cross-window sync:', error)
+    }
   }
 
   /**
@@ -162,6 +201,9 @@ export class PluginLoader {
       const moduleExports: any = {}
       const module = { exports: moduleExports }
 
+      // 导入 Vue 依赖
+      const { defineComponent, h, ref, computed, watch, onMounted, onUnmounted } = await import('vue')
+
       const sandbox = {
         module,
         exports: moduleExports,
@@ -171,6 +213,8 @@ export class PluginLoader {
         clearTimeout,
         setInterval,
         clearInterval,
+        // 提供 Vue 依赖
+        __vue: { defineComponent, h, ref, computed, watch, onMounted, onUnmounted },
         // 不暴露危险的全局对象
       }
 
@@ -186,17 +230,54 @@ export class PluginLoader {
       // 执行代码
       const result = func(...Object.values(sandbox))
 
+      console.log(`[PluginLoader] Plugin ${pluginId} result:`, result)
+      console.log(`[PluginLoader] Plugin ${pluginId} result type:`, typeof result)
+      console.log(`[PluginLoader] Plugin ${pluginId} result.name:`, result?.name)
+      console.log(`[PluginLoader] Plugin ${pluginId} result.default:`, result?.default)
+
       if (!result || typeof result !== 'object') {
         throw new Error('Plugin must export a valid plugin definition')
       }
 
-      return result
+      // 如果result有default属性，使用default
+      const pluginDef = result.default || result
+
+      return pluginDef
     } catch (error) {
       console.error(`[PluginLoader] Failed to execute plugin code for ${pluginId}:`, error)
       throw error
     }
   }
 
+  /**
+   * 强制刷新当前路由以清理组件注入
+   */
+  private async forceRefreshCurrentRoute(): Promise<void> {
+    if (!this.router) return
+    
+    try {
+      const currentRoute = this.router.currentRoute.value
+      console.log(`[PluginLoader] Forcing route refresh: ${currentRoute.path}`)
+      
+      // 方案1: 使用 router.replace 触发重新渲染
+      await this.router.replace({
+        path: currentRoute.path,
+        query: { ...currentRoute.query, _refresh: Date.now().toString() }
+      })
+      
+      // 立即移除 _refresh 参数
+      setTimeout(() => {
+        const query = { ...currentRoute.query }
+        delete query._refresh
+        this.router?.replace({ path: currentRoute.path, query })
+      }, 100)
+      
+      console.log(`[PluginLoader] Route refresh completed`)
+    } catch (error) {
+      console.warn(`[PluginLoader] Failed to refresh route:`, error)
+    }
+  }
+  
   /**
    * 检查插件权限
    */
@@ -258,6 +339,9 @@ export class PluginLoader {
 
       // 清理设置操作
       this.pluginSettingsActions.delete(pluginId)
+      
+      // 强制刷新当前路由以清理残留的组件注入
+      await this.forceRefreshCurrentRoute()
 
       // 卸载Rust后端
       const installedPlugin = packageManager.getPlugin(pluginId)
@@ -337,6 +421,14 @@ export class PluginLoader {
     if (success) {
       // 保存到已启用列表
       await this.saveEnabledPlugins()
+      
+      // 发送跨窗口事件
+      try {
+        await emit('plugin:enabled', { pluginName })
+        console.log(`[PluginLoader] Emitted plugin:enabled event for ${pluginName}`)
+      } catch (error) {
+        console.warn(`[PluginLoader] Failed to emit event:`, error)
+      }
     }
 
     return success
@@ -351,6 +443,14 @@ export class PluginLoader {
     if (success) {
       // 从已启用列表移除
       await this.saveEnabledPlugins()
+      
+      // 发送跨窗口事件
+      try {
+        await emit('plugin:disabled', { pluginName })
+        console.log(`[PluginLoader] Emitted plugin:disabled event for ${pluginName}`)
+      } catch (error) {
+        console.warn(`[PluginLoader] Failed to emit event:`, error)
+      }
     }
 
     return success

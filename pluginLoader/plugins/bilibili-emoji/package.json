@@ -1,0 +1,38 @@
+{
+  "name": "@ling-pet/plugin-bilibili-emoji",
+  "version": "2.0.0",
+  "description": "B站表情包管理、下载和发送插件",
+  "main": "index.ts",
+  "type": "module",
+  "keywords": ["emoji", "bilibili", "sticker", "download"],
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "scan": "node cli.js scan",
+    "search": "node cli.js search-online",
+    "download": "node cli.js download"
+  },
+  "bin": {
+    "bilibili-emoji": "./cli.js"
+  },
+  "backend": {
+    "enabled": true,
+    "entry": "backend/plugin.dll"
+  },
+  "pluginConfig": {
+    "enableAutoScan": true,
+    "maxCacheSize": 10000,
+    "supportedFormats": [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+  },
+  "permissions": [
+    "storage:read",
+    "storage:write",
+    "network:request",
+    "command:execute",
+    "hook:component",
+    "hook:store"
+  ],
+  "peerDependencies": {
+    "@ling-pet/plugin-llm-service": "^1.0.0"
+  }
+}

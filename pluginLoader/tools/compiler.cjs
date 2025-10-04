@@ -74,29 +74,49 @@ class PluginCompiler {
   async buildJS(entryPoint) {
     console.log('   📦 编译 JavaScript/TypeScript...');
 
+    // 创建一个虚拟的 Vue 模块文件
+    const vueShimPath = path.join(this.options.outDir, '__vue-shim.js');
+    await fs.writeFile(vueShimPath, `
+export const defineComponent = __vue.defineComponent;
+export const h = __vue.h;
+export const ref = __vue.ref;
+export const computed = __vue.computed;
+export const watch = __vue.watch;
+export const onMounted = __vue.onMounted;
+export const onUnmounted = __vue.onUnmounted;
+export const onBeforeMount = __vue.onBeforeMount;
+export const onBeforeUnmount = __vue.onBeforeUnmount;
+export const onUpdated = __vue.onUpdated;
+export const onBeforeUpdate = __vue.onBeforeUpdate;
+`);
+
     const buildOptions = {
       entryPoints: [entryPoint],
       bundle: true,
       outfile: path.join(this.options.outDir, 'index.js'),
-      format: 'esm',
-      platform: 'node',
+      format: 'iife',  // 使用 IIFE 格式，兼容 new Function()
+      globalName: 'PluginModule',
+      platform: 'browser',  // 改为 browser 平台
       target: 'es2020',
       minify: this.options.minify,
       sourcemap: this.options.sourcemap,
-      external: [
-        'vue',
-        'vue-router',
-        'pinia',
-        '@tauri-apps/*',
-        'pixi.js',
-        'pixi-live2d-display'
-      ],
       loader: {
         '.ts': 'ts',
         '.js': 'js',
         '.json': 'json'
       },
-      logLevel: 'warning'
+      logLevel: 'warning',
+      // 添加 banner 来设置 module.exports
+      banner: {
+        js: 'var module = { exports: {} };'
+      },
+      footer: {
+        js: 'module.exports = PluginModule.default || PluginModule;'
+      },
+      // 使用 alias 来替换 vue 导入
+      alias: {
+        'vue': vueShimPath
+      }
     };
 
     if (this.options.watch) {
@@ -106,6 +126,13 @@ class PluginCompiler {
     } else {
       await esbuild.build(buildOptions);
       console.log('   ✓ JavaScript 编译完成');
+      
+      // 删除临时的 shim 文件
+      try {
+        await fs.remove(vueShimPath);
+      } catch (error) {
+        // 忽略删除错误
+      }
     }
   }
 

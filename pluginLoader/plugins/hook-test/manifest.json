@@ -1,0 +1,11 @@
+{
+  "id": "hook-test",
+  "name": "Hook测试插件",
+  "version": "1.0.0",
+  "description": "测试Hook功能 - 在Live2D模型上方显示Hook组件",
+  "author": "Test",
+  "permissions": [
+    "hook:component"
+  ],
+  "entry": "index.ts"
+}

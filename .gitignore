@@ -31,5 +31,5 @@ dist-ssr
 public/live2d
 
 BilibiliSuitDownload
-pluginLoader/plugins
+# pluginLoader/plugins
 releases

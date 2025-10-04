@@ -187,3 +187,23 @@ pub async fn http_request(
 
     Ok(text)
 }
+
+/// 读取二进制文件
+/// 用于插件读取图片等二进制文件
+#[tauri::command]
+pub async fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
+    use std::fs;
+    
+    fs::read(&path)
+        .map_err(|e| format!("Failed to read binary file {}: {}", path, e))
+}
+
+/// 递归删除目录
+/// 用于插件清理临时文件
+#[tauri::command]
+pub async fn remove_dir_all(path: String) -> Result<(), String> {
+    use std::fs;
+    
+    fs::remove_dir_all(&path)
+        .map_err(|e| format!("Failed to remove directory {}: {}", path, e))
+}

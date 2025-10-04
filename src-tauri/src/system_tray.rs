@@ -136,7 +136,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
                     duration_ms: 30000,
                     icon: None,
                 };
-                if let Err(error) = crate::notification::show_notification_with_handle(handle, payload) {
+                if let Err(error) =
+                    crate::notification::show_notification_with_handle(handle, payload)
+                {
                     log::error!("触发测试通知失败: {error}");
                 }
             }

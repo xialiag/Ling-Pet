@@ -81,7 +81,9 @@ pub fn run() {
             plugin_unload_backend,
             plugin_remove_config,
             plugin_open_directory,
-            commands::http_request
+            commands::http_request,
+            commands::read_binary_file,
+            commands::remove_dir_all
         ])
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();

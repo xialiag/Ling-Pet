@@ -159,8 +159,14 @@ export class ComponentInjectionManager {
    * 清理插件的所有注入
    */
   cleanupPlugin(pluginId: string): void {
+    const affectedComponents: string[] = []
+    
     this.injections.forEach((injectionList, componentName) => {
       const filtered = injectionList.filter(i => i.pluginId !== pluginId)
+      if (filtered.length !== injectionList.length) {
+        affectedComponents.push(componentName)
+      }
+      
       if (filtered.length === 0) {
         this.injections.delete(componentName)
         this.wrappedComponents.delete(componentName)
@@ -170,6 +176,32 @@ export class ComponentInjectionManager {
     })
     
     console.log(`[ComponentInjection] Cleaned up injections for plugin ${pluginId}`)
+    console.log(`[ComponentInjection] Affected components:`, affectedComponents)
+    
+    // 触发强制刷新事件
+    if (affectedComponents.length > 0) {
+      this.triggerComponentRefresh(affectedComponents)
+    }
+  }
+  
+  /**
+   * 触发组件刷新
+   * 通过修改 key 或发送事件来强制组件重新渲染
+   */
+  private triggerComponentRefresh(componentNames: string[]): void {
+    console.log(`[ComponentInjection] Triggering refresh for components:`, componentNames)
+    
+    // 方案1: 发送全局事件
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('plugin:component-injection-changed', {
+        detail: { components: componentNames }
+      }))
+    }
+    
+    // 方案2: 强制更新包装组件
+    componentNames.forEach(name => {
+      this.wrappedComponents.delete(name)
+    })
   }
   
   /**

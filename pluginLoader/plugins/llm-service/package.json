@@ -1,0 +1,15 @@
+{
+  "name": "@ling-pet/plugin-llm-service",
+  "version": "1.0.0",
+  "description": "LLM服务插件",
+  "main": "index.ts",
+  "type": "module",
+  "keywords": ["llm", "ai", "service"],
+  "author": "",
+  "license": "MIT",
+  "permissions": [
+    "network:request",
+    "storage:read",
+    "storage:write"
+  ]
+}
