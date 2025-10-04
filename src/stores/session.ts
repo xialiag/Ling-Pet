@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia'
 import { ModelMessage } from 'ai';
 import { backendChat } from '../services/chat/backendChat';
+import { getBackendSessionUserPrompt } from '../services/chat/prompts';
 
 // 历史会话结构，可按需扩展元数据（标题、摘要等）
 type HistorySession = {
@@ -39,11 +40,7 @@ export const useSessionStore = defineStore('session', {
           messages: this.currentSession,
         })
         backendChat(
-          `这是过去一段时间内的用户活动：
-          \`\`\`json
-          ${JSON.stringify(this.currentSession.slice(2))}
-          \`\`\`
-          `
+          getBackendSessionUserPrompt((this.currentSession as any).slice(2))
         )
         this.currentSession = []
       }

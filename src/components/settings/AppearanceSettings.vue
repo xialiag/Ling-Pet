@@ -271,7 +271,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
 import { useAppearanceConfigStore } from '../../stores/configs/appearanceConfig';
-import { live2dModelService } from '../../services/live2dModelService';
+import { live2dModelService } from '../../services/live2d/live2dModelService';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useNotificationStore } from '../../stores/notification';
 
