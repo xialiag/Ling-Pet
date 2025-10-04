@@ -80,7 +80,8 @@ pub fn run() {
             plugin_load_backend,
             plugin_unload_backend,
             plugin_remove_config,
-            plugin_open_directory
+            plugin_open_directory,
+            commands::http_request
         ])
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();

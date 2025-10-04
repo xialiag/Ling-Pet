@@ -574,7 +574,8 @@ export class PluginLoader {
       },
 
       fetch: async (url: string, options?: RequestInit): Promise<Response> => {
-        return fetch(url, options)
+        const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
+        return tauriFetch(url, options)
       },
 
       getAppDataDir: async (): Promise<string> => {

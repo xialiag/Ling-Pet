@@ -153,8 +153,8 @@ export class PluginPackageManager {
 
             console.log(`[PackageManager] Uninstalling plugin: ${pluginId}`)
 
-            // 删除插件目录
-            await remove(plugin.path)
+            // 删除插件目录（递归删除）
+            await remove(plugin.path, { recursive: true })
 
             // 删除插件配置
             await invoke('plugin_remove_config', { pluginId })
