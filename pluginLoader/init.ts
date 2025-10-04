@@ -7,6 +7,8 @@ import type { Router } from 'vue-router'
 import { pluginLoader } from './core/pluginLoader'
 import { petToolManager } from './core/petToolManager'
 import { debugConsole } from './core/debugConsole'
+import { vueInstanceInterceptor } from './core/vueInstanceInterceptor'
+import { domInjectionManager } from './core/domInjection'
 
 /**
  * 初始化插件系统
@@ -15,13 +17,24 @@ export async function initializePluginSystem(app: App, router: Router): Promise<
   try {
     console.log('[PluginSystem] 正在初始化...')
     
+    // 初始化Vue实例拦截器，无需修改源码即可Hook组件
+    vueInstanceInterceptor.initialize(app)
+    
     // 初始化插件加载器
     await pluginLoader.initialize(app, router)
     
     // 暴露到全局对象，供UI组件使用
     ;(window as any).__pluginLoader = pluginLoader
     ;(window as any).__petToolManager = petToolManager
+    ;(window as any).__vueInstanceInterceptor = vueInstanceInterceptor
+    ;(window as any).__domInjectionManager = domInjectionManager
     ;(window as any).debug = debugConsole
+    
+    // 暴露调试函数
+    ;(window as any).forceCheckInjections = () => {
+      console.log('🔧 手动触发注入检查')
+      vueInstanceInterceptor.forceCheckAllInjections()
+    }
     
     // 自动加载已启用的插件
     const enabledPlugins = await getEnabledPlugins()
@@ -35,6 +48,12 @@ export async function initializePluginSystem(app: App, router: Router): Promise<
     if (stats.total > 0) {
       console.log(`[PluginSystem] 已加载 ${stats.total} 个工具供桌宠使用`)
     }
+    
+    // 延迟触发一次强制检查，确保所有注入都被应用
+    setTimeout(() => {
+      console.log('[PluginSystem] 执行延迟注入检查')
+      vueInstanceInterceptor.forceCheckAllInjections()
+    }, 2000)
     
     console.log('[PluginSystem] 初始化完成')
   } catch (error) {

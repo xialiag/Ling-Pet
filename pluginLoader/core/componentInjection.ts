@@ -1,6 +1,7 @@
 /**
  * 组件注入管理器
  * 提供完整的组件注入功能，支持before/after/replace等位置
+ * 支持局部导入组件的自动发现和注入
  */
 
 import type { Component } from 'vue'
@@ -62,6 +63,28 @@ export class ComponentInjectionManager {
     return this.injections.get(targetComponent) || []
   }
   
+  /**
+   * 智能组件注入 - 支持局部导入组件（无需修改源码）
+   */
+  async injectToComponent(targetComponentName: string, injection: InjectionInfo): Promise<() => void> {
+    console.log(`[ComponentInjection] 智能注入到组件 ${targetComponentName}（无需修改源码）`)
+    
+    // 先注册注入信息
+    const unregister = this.registerInjection(injection)
+    
+    // 触发Vue实例拦截器检查已挂载的组件
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('plugin:trigger-component-check', {
+        detail: { componentName: targetComponentName }
+      }))
+    }
+    
+    console.log(`[ComponentInjection] 注入已设置，等待组件被发现: ${injection.id}`)
+    
+    // 返回清理函数
+    return unregister
+  }
+
   /**
    * 创建包装后的组件
    * 这个组件会在适当的位置渲染注入的组件

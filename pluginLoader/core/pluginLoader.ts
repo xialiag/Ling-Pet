@@ -9,6 +9,8 @@ import { HookEngine } from './hookEngine'
 import { PluginEventBus, safeExecute } from './pluginApi'
 import { pluginCommunication } from './pluginCommunication'
 import { componentInjectionManager } from './componentInjection'
+import { vueInstanceInterceptor } from './vueInstanceInterceptor'
+import { domInjectionManager } from './domInjection'
 import { toolManager } from './toolManager'
 import { invoke } from '@tauri-apps/api/core'
 import { load as loadTauriStore } from '@tauri-apps/plugin-store'
@@ -37,6 +39,9 @@ export class PluginLoader {
 
     // 初始化Hook引擎
     this.hookEngine.initialize(app)
+
+    // 初始化DOM注入管理器
+    domInjectionManager.initialize()
 
     // 初始化插件包管理器
     await packageManager.initialize()
@@ -334,6 +339,12 @@ export class PluginLoader {
       // 清理组件注入
       componentInjectionManager.cleanupPlugin(pluginId)
 
+      // 清理Vue实例拦截器的注入
+      vueInstanceInterceptor.cleanupPlugin(pluginId)
+
+      // 清理DOM注入
+      domInjectionManager.cleanupPlugin(pluginId)
+
       // 清理LLM工具
       toolManager.cleanupPlugin(pluginId)
 
@@ -553,12 +564,11 @@ export class PluginLoader {
       },
 
       injectComponent: (target, component, options) => {
-        console.log(`[Plugin ${plugin.name}] Injecting component to ${target}`)
+        console.log(`[Plugin ${plugin.name}] 智能注入组件到 ${target}`)
 
         const injectionId = `${plugin.name}-${target}-${Date.now()}`
 
-        // 注册到组件注入管理器
-        const unregister = componentInjectionManager.registerInjection({
+        const injection = {
           id: injectionId,
           pluginId: plugin.name,
           targetComponent: target,
@@ -567,42 +577,39 @@ export class PluginLoader {
           props: options?.props,
           condition: options?.condition,
           order: options?.order
-        })
-
-        // 检查目标组件是否已注册
-        const targetComponent = app.component(target)
-        if (targetComponent) {
-          // 创建包装后的组件
-          const wrappedComponent = componentInjectionManager.createWrappedComponent(
-            targetComponent,
-            target
-          )
-
-          // 重新注册组件
-          app.component(target, wrappedComponent)
-
-          console.log(`[Plugin ${plugin.name}] Component ${target} wrapped with injection`)
-        } else {
-          console.warn(`[Plugin ${plugin.name}] Target component ${target} not found, injection will be applied when component is registered`)
         }
 
-        console.log(`[Plugin ${plugin.name}] Component injected: ${injectionId}`)
+        // 使用智能注入，支持局部导入组件
+        let unregisterPromise: Promise<() => void>
 
-        // 返回取消注入函数
-        return () => {
-          unregister()
+        // 先检查全局注册的组件
+        const globalComponent = app.component(target)
+        if (globalComponent) {
+          console.log(`[Plugin ${plugin.name}] 发现全局组件 ${target}`)
+          
+          const unregister = componentInjectionManager.registerInjection(injection)
+          const wrappedComponent = componentInjectionManager.createWrappedComponent(globalComponent, target)
+          app.component(target, wrappedComponent)
+          
+          unregisterPromise = Promise.resolve(unregister)
+        } else {
+          console.log(`[Plugin ${plugin.name}] 全局组件 ${target} 未找到，使用智能发现`)
+          
+          // 使用智能注入
+          unregisterPromise = componentInjectionManager.injectToComponent(target, injection)
+        }
 
-          // 如果没有其他注入了，恢复原始组件
-          const injections = componentInjectionManager.getInjections(target)
-          if (injections.length === 0) {
-            const originalComponent = app.component(target)
-            if (originalComponent) {
-              // 这里需要保存原始组件的引用，暂时保持包装状态
-              console.log(`[Plugin ${plugin.name}] All injections removed from ${target}`)
-            }
+        console.log(`[Plugin ${plugin.name}] 组件注入已设置: ${injectionId}`)
+
+        // 返回异步清理函数
+        return async () => {
+          try {
+            const unregister = await unregisterPromise
+            unregister()
+            console.log(`[Plugin ${plugin.name}] 组件注入已移除: ${injectionId}`)
+          } catch (error) {
+            console.error(`[Plugin ${plugin.name}] 移除组件注入失败:`, error)
           }
-
-          console.log(`[Plugin ${plugin.name}] Component injection removed: ${injectionId}`)
         }
       },
 
@@ -819,6 +826,40 @@ export class PluginLoader {
 
       getSettingsActions: () => {
         return this.pluginSettingsActions.get(pluginId) || []
+      },
+
+      // ========== DOM注入API ==========
+
+      injectHTML: (selector: string, html: string, options?: any) => {
+        console.log(`[Plugin ${plugin.name}] 注入HTML到 ${selector}`)
+        return domInjectionManager.injectHTML(plugin.name, selector, html, options)
+      },
+
+      injectText: (selector: string, text: string, options?: any) => {
+        console.log(`[Plugin ${plugin.name}] 注入文本到 ${selector}`)
+        return domInjectionManager.injectText(plugin.name, selector, text, options)
+      },
+
+      injectVueComponent: async (selector: string, component: any, props?: Record<string, any>, options?: any) => {
+        console.log(`[Plugin ${plugin.name}] 注入Vue组件到 ${selector}`)
+        return domInjectionManager.injectVueComponent(plugin.name, selector, component, props, options)
+      },
+
+      injectCSS: (css: string, options?: { id?: string }) => {
+        console.log(`[Plugin ${plugin.name}] 注入CSS样式`)
+        return domInjectionManager.injectCSS(plugin.name, css, options)
+      },
+
+      querySelector: (selector: string) => {
+        return domInjectionManager.querySelector(selector)
+      },
+
+      querySelectorAll: (selector: string) => {
+        return domInjectionManager.querySelectorAll(selector)
+      },
+
+      waitForElement: (selector: string, timeout?: number) => {
+        return domInjectionManager.waitForElement(selector, timeout)
       }
     }
 

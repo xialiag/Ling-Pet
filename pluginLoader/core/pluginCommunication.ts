@@ -300,12 +300,12 @@ export class PluginCommunicationManager {
   /**
    * 创建共享状态
    */
-  createSharedState<T = any>(config: SharedStateConfig): any {
+  createSharedState<T = any>(config: SharedStateConfig): T {
     const key = `${config.pluginId}:${config.key}`
     
     if (this.sharedStates.has(key)) {
       console.warn(`[PluginComm] 共享状态已存在: ${key}`)
-      return this.sharedStates.get(key)
+      return this.sharedStates.get(key) as T
     }
     
     const state = reactive(config.initialValue)
@@ -313,15 +313,15 @@ export class PluginCommunicationManager {
     
     console.log(`[PluginComm] 创建共享状态: ${key}`)
     
-    return config.readonly ? readonly(state) : state
+    return (config.readonly ? readonly(state) : state) as T
   }
   
   /**
    * 获取共享状态
    */
-  getSharedState<T = any>(pluginId: string, key: string): any {
+  getSharedState<T = any>(pluginId: string, key: string): T | undefined {
     const fullKey = `${pluginId}:${key}`
-    return this.sharedStates.get(fullKey)
+    return this.sharedStates.get(fullKey) as T | undefined
   }
   
   /**

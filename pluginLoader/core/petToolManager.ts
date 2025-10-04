@@ -7,6 +7,8 @@
  * 2. 生成工具列表提示词
  * 3. 解析 LLM 的工具调用请求
  * 4. 执行工具并返回结果
+ * 5. 管理工具调用上下文和历史
+ * 6. 提供智能工具推荐
  */
 
 import { toolManager, type ToolDefinition } from './toolManager'
@@ -14,6 +16,8 @@ import { toolManager, type ToolDefinition } from './toolManager'
 export interface PetToolCall {
   tool: string
   args: Record<string, any>
+  context?: string // 调用上下文
+  sessionId?: string // 会话ID
 }
 
 export interface PetToolResult {
@@ -21,19 +25,44 @@ export interface PetToolResult {
   result?: any
   error?: string
   toolName: string
+  duration?: number
+  suggestions?: string[] // 后续建议的工具
+  context?: any // 上下文信息
+}
+
+export interface ToolCallSession {
+  id: string
+  startTime: number
+  calls: Array<{
+    call: PetToolCall
+    result: PetToolResult
+    timestamp: number
+  }>
+  context: Record<string, any>
+}
+
+export interface ToolRecommendation {
+  toolName: string
+  reason: string
+  confidence: number
+  suggestedArgs?: Record<string, any>
 }
 
 /**
  * 桌宠工具管理器
  */
 export class PetToolManager {
+  private sessions = new Map<string, ToolCallSession>()
+  private maxSessionAge = 30 * 60 * 1000 // 30分钟
+  private toolUsageStats = new Map<string, { count: number; successRate: number; avgDuration: number }>()
+  private toolRelations = new Map<string, Set<string>>() // 工具关联关系
   /**
    * 生成工具列表提示词
    * 用于注入到桌宠 LLM 的系统提示词中
    */
   generateToolPrompt(): string {
     const tools = toolManager.getTools()
-    
+
     if (tools.length === 0) {
       return ''
     }
@@ -109,14 +138,14 @@ ${toolDescriptions}
     // 匹配 ```tool ... ``` 代码块
     const toolBlockRegex = /```tool\s*\n([\s\S]*?)\n```/
     const match = llmResponse.match(toolBlockRegex)
-    
+
     if (!match) {
       return null
     }
 
     try {
       const toolCall = JSON.parse(match[1])
-      
+
       if (!toolCall.tool || typeof toolCall.tool !== 'string') {
         throw new Error('Invalid tool call: missing tool name')
       }
@@ -249,13 +278,13 @@ ${toolDescriptions}
    */
   generateToolDocumentation(): string {
     const tools = toolManager.getTools()
-    
+
     if (tools.length === 0) {
       return '# 工具列表\n\n暂无可用工具。'
     }
 
     const byCategory = new Map<string, ToolDefinition[]>()
-    
+
     tools.forEach(tool => {
       const category = tool.category || '其他'
       if (!byCategory.has(category)) {
@@ -269,12 +298,12 @@ ${toolDescriptions}
 
     byCategory.forEach((tools, category) => {
       doc += `## ${category}\n\n`
-      
+
       tools.forEach(tool => {
         doc += `### ${tool.name}\n\n`
         doc += `**描述**: ${tool.description}\n\n`
         doc += `**插件**: ${tool.pluginId}\n\n`
-        
+
         if (tool.parameters.length > 0) {
           doc += '**参数**:\n\n'
           tool.parameters.forEach(p => {

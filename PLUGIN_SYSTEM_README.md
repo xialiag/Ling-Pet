@@ -1,18 +1,15 @@
 # Ling-Pet 插件系统
 
-一个完整的、生产级别的插件系统，支持热加载、Rust 后端和跨平台部署。
+一个完整的、生产级别的插件系统，支持Vue组件注入、DOM操作和LLM工具集成。
 
-## 🌟 特性
+## 🌟 核心特性
 
+- ✅ **Vue组件注入**: 无需修改源码即可Hook任何组件
+- ✅ **DOM注入API**: 灵活的HTML/CSS/Vue组件注入
+- ✅ **LLM工具集成**: 为AI助手提供扩展工具
+- ✅ **插件通信**: 事件系统和RPC调用
 - ✅ **热加载**: 运行时加载和卸载插件
-- ✅ **Rust 后端**: 支持原生代码，高性能
-- ✅ **跨平台**: Windows/macOS/Linux
-- ✅ **独立部署**: 插件完全独立于主应用
-- ✅ **自动构建**: 一键编译和打包
 - ✅ **权限系统**: 细粒度的权限控制
-- ✅ **LLM 集成**: 为 AI 提供工具
-- ✅ **组件 Hook**: 扩展 UI 功能
-- ✅ **事件通信**: 插件间通信
 
 ## 🚀 快速开始
 
@@ -111,22 +108,11 @@ LLM 工具服务插件。
 
 ## 📚 文档
 
-### 开发指南
-- [插件开发指南](docs/plugin-development-guide.md)
-- [后端集成指南](PLUGIN_BACKEND_INTEGRATION.md)
-- [快速开始](PLUGIN_BACKEND_QUICKSTART.md)
-- [构建指南](pluginLoader/docs/BUILD_GUIDE.md)
-- [跨平台构建](pluginLoader/docs/CROSS_PLATFORM_BUILD.md)
-
-### 参考文档
-- [API 文档](pluginLoader/types/api.ts)
-- [架构说明](docs/plugin-architecture.md)
-- [故障排查](PLUGIN_TROUBLESHOOTING.md)
-
-### 完成报告
-- [最终状态](FINAL_STATUS.md)
-- [自动构建完成](AUTO_BUILD_COMPLETE.md)
-- [后端完成](BILIBILI_EMOJI_BACKEND_COMPLETE.md)
+### 核心文档
+- [使用指南](PLUGIN_SYSTEM_GUIDE.md) - 完整的开发和使用指南
+- [API参考](API_REFERENCE.md) - 详细的API文档
+- [故障排除](TROUBLESHOOTING.md) - 常见问题和解决方案
+- [快速参考](pluginLoader/tools/CHEATSHEET.md) - 命令和API速查
 
 ## 🛠️ 构建工具
 

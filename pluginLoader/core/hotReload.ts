@@ -29,7 +29,7 @@ export class HotReloadManager extends EventEmitter {
     }
 
     const pluginDir = this.pathResolver.getPluginDir(pluginId);
-    
+
     if (!fs.existsSync(pluginDir)) {
       console.warn(`[HotReload] Plugin directory not found: ${pluginDir}`);
       return;
@@ -37,7 +37,7 @@ export class HotReloadManager extends EventEmitter {
 
     try {
       const chokidar = require('chokidar');
-      
+
       const watcher = chokidar.watch(pluginDir, {
         ignored: /(^|[\/\\])\../, // 忽略隐藏文件
         persistent: true,
@@ -91,12 +91,12 @@ export class HotReloadManager extends EventEmitter {
   private async reloadPlugin(pluginId: string): Promise<void> {
     try {
       console.log(`[HotReload] Reloading plugin: ${pluginId}`);
-      
+
       this.clearModuleCache(pluginId);
-      
+
       await this.pluginLoader.unloadPlugin(pluginId);
       await this.pluginLoader.loadPlugin(pluginId);
-      
+
       this.emit('plugin-reloaded', pluginId);
       console.log(`[HotReload] Plugin reloaded successfully: ${pluginId}`);
     } catch (error) {
@@ -107,7 +107,7 @@ export class HotReloadManager extends EventEmitter {
 
   private clearModuleCache(pluginId: string): void {
     const pluginDir = this.pathResolver.getPluginDir(pluginId);
-    
+
     Object.keys(require.cache).forEach(key => {
       if (key.startsWith(pluginDir)) {
         delete require.cache[key];
@@ -117,7 +117,7 @@ export class HotReloadManager extends EventEmitter {
   }
 
   cleanup(): void {
-    this.watchers.forEach((watcher, pluginId) => {
+    this.watchers.forEach((_watcher, pluginId) => {
       this.disableHotReload(pluginId);
     });
   }

@@ -112,6 +112,29 @@ export interface PluginContext {
   
   /** 获取插件的所有设置操作 */
   getSettingsActions: () => PluginSettingsAction[]
+  
+  // ========== DOM注入API ==========
+  
+  /** 注入HTML内容到指定选择器 */
+  injectHTML: (selector: string, html: string, options?: DOMInjectionOptions) => () => void
+  
+  /** 注入文本内容到指定选择器 */
+  injectText: (selector: string, text: string, options?: DOMInjectionOptions) => () => void
+  
+  /** 注入Vue组件到指定选择器 */
+  injectVueComponent: (selector: string, component: Component, props?: Record<string, any>, options?: DOMInjectionOptions) => Promise<() => void>
+  
+  /** 注入CSS样式 */
+  injectCSS: (css: string, options?: { id?: string }) => () => void
+  
+  /** 查询单个DOM元素 */
+  querySelector: (selector: string) => Element | null
+  
+  /** 查询所有匹配的DOM元素 */
+  querySelectorAll: (selector: string) => NodeListOf<Element>
+  
+  /** 等待元素出现 */
+  waitForElement: (selector: string, timeout?: number) => Promise<Element>
 }
 
 /**
@@ -180,6 +203,32 @@ export interface PluginMessage {
 export interface SharedStateOptions {
   readonly?: boolean
   persistent?: boolean
+}
+
+/**
+ * DOM注入选项
+ */
+export interface DOMInjectionOptions {
+  /** 注入位置 */
+  position?: 'before' | 'after' | 'prepend' | 'append' | 'replace'
+  
+  /** CSS类名 */
+  className?: string
+  
+  /** 内联样式 */
+  style?: Record<string, string> | string
+  
+  /** HTML属性 */
+  attributes?: Record<string, string>
+  
+  /** 注入条件 */
+  condition?: () => boolean
+  
+  /** 注入顺序 */
+  order?: number
+  
+  /** 是否在插件卸载时自动移除 */
+  autoRemove?: boolean
 }
 
 /**
