@@ -299,7 +299,7 @@ export class ToolManager {
    * 生成ID
    */
   private generateId(): string {
-    return `tool_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    return `tool_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 }
 

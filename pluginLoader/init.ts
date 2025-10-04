@@ -81,8 +81,12 @@ async function getEnabledPlugins(): Promise<string[]> {
  * 获取桌宠工具提示词
  * 供桌宠 LLM 的系统提示词使用
  */
-export function getPetToolPrompt(): string {
-  return petToolManager.generateToolPrompt()
+export function getPetToolPrompt(options?: {
+  includeStats?: boolean
+  includeRecommendations?: boolean
+  sessionId?: string
+}): string {
+  return petToolManager.generateToolPrompt(options)
 }
 
 /**
@@ -96,8 +100,33 @@ export function extractToolCallFromResponse(response: string) {
  * 执行工具调用
  * 供桌宠 LLM 使用
  */
-export async function executePetToolCall(toolName: string, args: Record<string, any>) {
-  return petToolManager.executeToolCall({ tool: toolName, args })
+export async function executePetToolCall(toolName: string, args: Record<string, any>, sessionId?: string) {
+  return petToolManager.executeToolCall({ 
+    tool: toolName, 
+    args,
+    sessionId 
+  })
+}
+
+/**
+ * 创建工具调用会话
+ */
+export function createPetToolSession(sessionId?: string): string {
+  return petToolManager.createSession(sessionId)
+}
+
+/**
+ * 获取会话信息
+ */
+export function getPetToolSession(sessionId: string) {
+  return petToolManager.getSession(sessionId)
+}
+
+/**
+ * 获取工具推荐
+ */
+export function getPetToolRecommendations(sessionId: string) {
+  return petToolManager.getToolRecommendations(sessionId)
 }
 
 /**
@@ -112,4 +141,18 @@ export function getPetToolList() {
  */
 export function getPetToolDocumentation(): string {
   return petToolManager.generateToolDocumentation()
+}
+
+/**
+ * 获取详细的工具统计
+ */
+export function getPetToolStats() {
+  return petToolManager.getDetailedStats()
+}
+
+/**
+ * 格式化工具结果为文本
+ */
+export function formatPetToolResult(result: any) {
+  return petToolManager.formatToolResult(result)
 }

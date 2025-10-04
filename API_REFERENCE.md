@@ -351,7 +351,56 @@ interface PluginDefinition {
     author?: string
     onLoad: (context: PluginContext) => Promise<void | (() => void)> | void | (() => void)
     onUnload?: (context: PluginContext) => Promise<void> | void
-    configSchema?: any
+    configSchema?: Record<string, PluginConfigSchema>
+    settingsActions?: PluginSettingsAction[]
+}
+```
+
+**PluginConfigSchema** - 插件配置项定义:
+```typescript
+interface PluginConfigSchema {
+    type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'color' | 'file' | 'range' | 'group'
+    label: string
+    description?: string
+    default?: any
+    required?: boolean
+    disabled?: boolean
+    hidden?: boolean
+    
+    // 验证规则
+    validation?: {
+        min?: number
+        max?: number
+        pattern?: string
+        validator?: (value: any) => boolean | string
+    }
+    
+    // 类型特有属性
+    secret?: boolean              // string: 密码字段
+    placeholder?: string          // string: 占位符
+    rows?: number                 // textarea: 行数
+    min?: number                  // number/range: 最小值
+    max?: number                  // number/range: 最大值
+    step?: number                 // number/range: 步长
+    unit?: string                 // number/range: 单位
+    options?: Array<{             // select/multiselect: 选项
+        label: string
+        value: any
+        disabled?: boolean
+        icon?: string
+    }>
+    multiple?: boolean            // select: 多选
+    accept?: string               // file: 文件类型
+    multipleFiles?: boolean       // file: 多文件
+    children?: Record<string, PluginConfigSchema>  // group: 子项
+    collapsible?: boolean         // group: 可折叠
+    expanded?: boolean            // group: 默认展开
+    icon?: string                 // group: 图标
+    
+    // 高级功能
+    condition?: (config: Record<string, any>) => boolean
+    class?: string
+    helpUrl?: string
 }
 ```
 
@@ -381,6 +430,245 @@ interface SharedStateOptions {
 ```
 
 ## 📝 使用示例
+
+## 🎛️ 插件配置 API
+
+### 配置Schema定义
+```typescript
+export default definePlugin({
+    name: 'my-plugin',
+    configSchema: {
+        // 字符串输入
+        apiKey: {
+            type: 'string',
+            label: 'API密钥',
+            description: '用于访问外部服务',
+            secret: true,
+            required: true,
+            validation: {
+                min: 10,
+                pattern: '^[a-zA-Z0-9]+$'
+            }
+        },
+        
+        // 布尔开关
+        enabled: {
+            type: 'boolean',
+            label: '启用功能',
+            default: true
+        },
+        
+        // 选择菜单
+        theme: {
+            type: 'select',
+            label: '主题',
+            default: 'auto',
+            options: [
+                { label: '自动', value: 'auto', icon: 'mdi-brightness-auto' },
+                { label: '浅色', value: 'light', icon: 'mdi-brightness-7' },
+                { label: '深色', value: 'dark', icon: 'mdi-brightness-4' }
+            ]
+        },
+        
+        // 配置分组
+        advanced: {
+            type: 'group',
+            label: '高级设置',
+            collapsible: true,
+            children: {
+                debugMode: {
+                    type: 'boolean',
+                    label: '调试模式',
+                    default: false
+                },
+                logLevel: {
+                    type: 'select',
+                    label: '日志级别',
+                    options: [
+                        { label: '错误', value: 'error' },
+                        { label: '信息', value: 'info' },
+                        { label: '调试', value: 'debug' }
+                    ],
+                    condition: (config) => config.advanced?.debugMode === true
+                }
+            }
+        }
+    },
+    
+    async onLoad(context) {
+        // 读取配置
+        const apiKey = context.getConfig('apiKey')
+        const enabled = context.getConfig('enabled', true)
+        const theme = context.getConfig('theme', 'auto')
+        const debugMode = context.getConfig('advanced.debugMode', false)
+        
+        // 使用配置...
+    }
+})
+```
+
+### 支持的配置类型
+
+#### 1. 字符串输入 (`string`)
+```typescript
+{
+    type: 'string',
+    label: '文本输入',
+    placeholder: '请输入...',
+    secret: false,           // 是否为密码字段
+    validation: {
+        min: 5,              // 最小长度
+        max: 100,            // 最大长度
+        pattern: '^[a-z]+$'  // 正则验证
+    }
+}
+```
+
+#### 2. 多行文本 (`textarea`)
+```typescript
+{
+    type: 'textarea',
+    label: '多行文本',
+    rows: 4,                 // 行数
+    placeholder: '请输入详细描述...'
+}
+```
+
+#### 3. 数字输入 (`number`)
+```typescript
+{
+    type: 'number',
+    label: '数字',
+    min: 0,
+    max: 100,
+    step: 1,
+    unit: '个',              // 单位显示
+    default: 10
+}
+```
+
+#### 4. 范围滑块 (`range`)
+```typescript
+{
+    type: 'range',
+    label: '范围选择',
+    min: 0,
+    max: 100,
+    step: 5,
+    unit: '%',
+    default: 50
+}
+```
+
+#### 5. 布尔开关 (`boolean`)
+```typescript
+{
+    type: 'boolean',
+    label: '开关',
+    description: '启用或禁用功能',
+    default: true
+}
+```
+
+#### 6. 单选下拉 (`select`)
+```typescript
+{
+    type: 'select',
+    label: '选择项',
+    options: [
+        { label: '选项1', value: 'option1', icon: 'mdi-star' },
+        { label: '选项2', value: 'option2', disabled: true }
+    ],
+    default: 'option1'
+}
+```
+
+#### 7. 多选下拉 (`multiselect`)
+```typescript
+{
+    type: 'multiselect',
+    label: '多选项',
+    options: [
+        { label: '功能A', value: 'featureA' },
+        { label: '功能B', value: 'featureB' }
+    ],
+    default: ['featureA']
+}
+```
+
+#### 8. 颜色选择 (`color`)
+```typescript
+{
+    type: 'color',
+    label: '颜色',
+    description: '选择主题颜色',
+    default: '#1976d2'
+}
+```
+
+#### 9. 文件选择 (`file`)
+```typescript
+{
+    type: 'file',
+    label: '文件',
+    accept: '.json,.txt',    // 允许的文件类型
+    multipleFiles: false     // 是否允许多文件
+}
+```
+
+#### 10. 配置分组 (`group`)
+```typescript
+{
+    type: 'group',
+    label: '分组名称',
+    icon: 'mdi-cog',
+    collapsible: true,       // 可折叠
+    expanded: false,         // 默认展开
+    children: {
+        // 子配置项...
+    }
+}
+```
+
+### 高级功能
+
+#### 条件显示
+```typescript
+{
+    type: 'select',
+    label: '日志级别',
+    condition: (config) => config.debugMode === true,  // 仅在调试模式下显示
+    options: [...]
+}
+```
+
+#### 数据验证
+```typescript
+{
+    type: 'textarea',
+    label: 'JSON配置',
+    validation: {
+        validator: (value) => {
+            if (!value) return true
+            try {
+                JSON.parse(value)
+                return true
+            } catch {
+                return '请输入有效的JSON格式'
+            }
+        }
+    }
+}
+```
+
+#### 帮助链接
+```typescript
+{
+    type: 'string',
+    label: 'API密钥',
+    helpUrl: 'https://example.com/help/api-key'  // 帮助文档链接
+}
+```
 
 ### 完整插件示例
 ```typescript

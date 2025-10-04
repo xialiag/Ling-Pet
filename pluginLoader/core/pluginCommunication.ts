@@ -412,7 +412,7 @@ export class PluginCommunicationManager {
    * 生成消息ID
    */
   private generateMessageId(): string {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
   
   /**

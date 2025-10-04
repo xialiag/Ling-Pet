@@ -232,6 +232,100 @@ export interface DOMInjectionOptions {
 }
 
 /**
+ * 插件配置项Schema
+ */
+export interface PluginConfigSchema {
+  /** 配置项类型 */
+  type: 'string' | 'number' | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'color' | 'file' | 'range' | 'group'
+  
+  /** 显示标签 */
+  label: string
+  
+  /** 描述信息 */
+  description?: string
+  
+  /** 默认值 */
+  default?: any
+  
+  /** 是否必填 */
+  required?: boolean
+  
+  /** 是否禁用 */
+  disabled?: boolean
+  
+  /** 是否隐藏 */
+  hidden?: boolean
+  
+  /** 验证规则 */
+  validation?: {
+    /** 最小值/最小长度 */
+    min?: number
+    /** 最大值/最大长度 */
+    max?: number
+    /** 正则表达式 */
+    pattern?: string
+    /** 自定义验证函数 */
+    validator?: (value: any) => boolean | string
+  }
+  
+  // 字符串类型特有属性
+  /** 是否为密码字段 */
+  secret?: boolean
+  /** 占位符文本 */
+  placeholder?: string
+  
+  // 文本区域类型特有属性
+  /** 文本区域行数 */
+  rows?: number
+  
+  // 数字/范围类型特有属性
+  /** 最小值 */
+  min?: number
+  /** 最大值 */
+  max?: number
+  /** 步长 */
+  step?: number
+  /** 单位 */
+  unit?: string
+  
+  // 选择类型特有属性
+  /** 选项列表 */
+  options?: Array<{
+    label: string
+    value: any
+    disabled?: boolean
+    icon?: string
+  }>
+  /** 是否允许多选 */
+  multiple?: boolean
+  
+  // 文件类型特有属性
+  /** 允许的文件类型 */
+  accept?: string
+  /** 是否允许多个文件 */
+  multipleFiles?: boolean
+  
+  // 分组类型特有属性
+  /** 子配置项 */
+  children?: Record<string, PluginConfigSchema>
+  /** 是否可折叠 */
+  collapsible?: boolean
+  /** 默认是否展开 */
+  expanded?: boolean
+  /** 分组图标 */
+  icon?: string
+  
+  /** 条件显示 */
+  condition?: (config: Record<string, any>) => boolean
+  
+  /** 自定义样式类 */
+  class?: string
+  
+  /** 帮助链接 */
+  helpUrl?: string
+}
+
+/**
  * 插件设置页面操作按钮
  */
 export interface PluginSettingsAction {
@@ -280,13 +374,13 @@ export interface PluginDefinition {
   dependencies?: string[]
   
   /** 插件加载时调用 */
-  onLoad: (context: PluginContext) => Promise<void> | void
+  onLoad: (context: PluginContext) => Promise<void | (() => void)> | void | (() => void)
   
   /** 插件卸载时调用 */
   onUnload?: (context: PluginContext) => Promise<void> | void
   
   /** 插件配置Schema（可选） */
-  configSchema?: Record<string, any>
+  configSchema?: Record<string, PluginConfigSchema>
   
   /** 插件设置页面的自定义操作按钮 */
   settingsActions?: PluginSettingsAction[]

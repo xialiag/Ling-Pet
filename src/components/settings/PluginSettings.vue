@@ -52,68 +52,15 @@
                     <v-divider class="my-4"></v-divider>
                     <h3 class="text-subtitle-2 font-weight-bold mb-3">插件配置</h3>
                     
-                    <div
+                    <PluginConfigField
                       v-for="(schema, key) in plugin.configSchema"
                       :key="key"
-                      class="mb-4"
-                    >
-                      <!-- 字符串类型 -->
-                      <v-text-field
-                        v-if="schema.type === 'string'"
-                        v-model="pluginConfigs[plugin.name][key]"
-                        :label="schema.label"
-                        :hint="schema.description"
-                        :type="schema.secret ? 'password' : 'text'"
-                        :required="schema.required"
-                        density="comfortable"
-                        variant="outlined"
-                        persistent-hint
-                        @blur="savePluginConfig(plugin.name, key, pluginConfigs[plugin.name][key])"
-                      />
-                      
-                      <!-- 数字类型 -->
-                      <div v-else-if="schema.type === 'number'">
-                        <v-label class="mb-2">{{ schema.label }}</v-label>
-                        <v-slider
-                          v-model="pluginConfigs[plugin.name][key]"
-                          :min="schema.min || 0"
-                          :max="schema.max || 100"
-                          :step="schema.step || 1"
-                          thumb-label
-                          @end="savePluginConfig(plugin.name, key, pluginConfigs[plugin.name][key])"
-                        >
-                          <template #append>
-                            <v-text-field
-                              v-model.number="pluginConfigs[plugin.name][key]"
-                              type="number"
-                              style="width: 80px"
-                              density="compact"
-                              variant="outlined"
-                              hide-details
-                              @blur="savePluginConfig(plugin.name, key, pluginConfigs[plugin.name][key])"
-                            />
-                          </template>
-                        </v-slider>
-                        <div class="text-caption text-medium-emphasis mt-1">
-                          {{ schema.description }}
-                        </div>
-                      </div>
-                      
-                      <!-- 布尔类型 -->
-                      <div v-else-if="schema.type === 'boolean'" class="d-flex justify-space-between align-center">
-                        <div>
-                          <v-label>{{ schema.label }}</v-label>
-                          <div class="text-caption text-medium-emphasis">{{ schema.description }}</div>
-                        </div>
-                        <v-switch
-                          v-model="pluginConfigs[plugin.name][key]"
-                          @change="savePluginConfig(plugin.name, key, pluginConfigs[plugin.name][key])"
-                          color="primary"
-                          density="compact"
-                          hide-details
-                        />
-                      </div>
-                    </div>
+                      :field-key="key"
+                      :schema="schema"
+                      :value="pluginConfigs[plugin.name]?.[key]"
+                      :all-config="pluginConfigs[plugin.name] || {}"
+                      @update:value="savePluginConfig(plugin.name, key, $event)"
+                    />
                   </div>
                   
                   <!-- 插件操作按钮 -->
@@ -138,6 +85,7 @@
                       <!-- 卸载按钮 -->
                       <v-btn
                         @click="uninstallPlugin(plugin.name)"
+                        :disabled="uninstalling"
                         color="error"
                         variant="outlined"
                         prepend-icon="mdi-delete"
@@ -200,6 +148,69 @@
       </v-card-text>
     </v-card>
     
+    <!-- 卸载确认对话框 -->
+    <v-dialog 
+      v-model="uninstallDialog" 
+      max-width="500"
+      persistent
+      :disabled="uninstalling"
+      @keydown.esc="cancelUninstall"
+      @keydown.enter="confirmUninstall"
+    >
+      <v-card>
+        <v-card-title class="text-h6 d-flex align-center">
+          <v-icon color="warning" class="mr-2">mdi-alert-circle</v-icon>
+          确认卸载插件
+        </v-card-title>
+        
+        <v-card-text class="pb-2">
+          <p class="mb-4 text-body-1">
+            确定要卸载插件 <strong class="text-error">"{{ pluginToUninstall }}"</strong> 吗？
+          </p>
+          
+          <v-alert 
+            type="warning" 
+            variant="tonal" 
+            density="compact"
+            class="mb-3"
+          >
+            <template #prepend>
+              <v-icon>mdi-alert-triangle</v-icon>
+            </template>
+            <div>
+              <strong>警告：</strong>此操作将会：
+              <ul class="mt-2 ml-4">
+                <li>删除所有插件文件</li>
+                <li>清除插件配置</li>
+                <li>停止插件运行</li>
+              </ul>
+              <strong class="text-error">此操作不可撤销！</strong>
+            </div>
+          </v-alert>
+        </v-card-text>
+        
+        <v-card-actions class="px-6 pb-4">
+          <v-spacer></v-spacer>
+          <v-btn
+            @click="cancelUninstall"
+            :disabled="uninstalling"
+            variant="text"
+            color="grey"
+          >
+            取消
+          </v-btn>
+          <v-btn
+            @click="confirmUninstall"
+            :loading="uninstalling"
+            color="error"
+            variant="elevated"
+            prepend-icon="mdi-delete"
+          >
+            确认卸载
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
   </v-container>
 </template>
@@ -208,6 +219,7 @@
 import { ref, onMounted, reactive } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
+import PluginConfigField from './PluginConfigField.vue'
 
 interface PluginInfo {
   name: string
@@ -224,6 +236,9 @@ const plugins = ref<PluginInfo[]>([])
 const pluginConfigs = reactive<Record<string, Record<string, any>>>({})
 const refreshing = ref(false)
 const installing = ref(false)
+const uninstalling = ref(false)
+const uninstallDialog = ref(false)
+const pluginToUninstall = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
 
@@ -286,6 +301,13 @@ const loadPluginConfig = async (pluginName: string, key: string): Promise<any> =
 // 保存插件配置
 const savePluginConfig = async (pluginName: string, key: string, value: any) => {
   try {
+    // 更新本地配置
+    if (!pluginConfigs[pluginName]) {
+      pluginConfigs[pluginName] = {}
+    }
+    pluginConfigs[pluginName][key] = value
+    
+    // 保存到存储
     await invoke('set_plugin_config', { pluginName, key, value: JSON.stringify(value) })
     
     // 通知插件配置已更新
@@ -293,8 +315,11 @@ const savePluginConfig = async (pluginName: string, key: string, value: any) => 
     if (pluginLoader) {
       pluginLoader.notifyConfigChange(pluginName, key, value)
     }
+    
+    console.log(`[PluginSettings] 配置已保存: ${pluginName}.${key} = ${value}`)
   } catch (error) {
     console.error('保存插件配置失败:', error)
+    errorMessage.value = `保存配置失败: ${error}`
   }
 }
 
@@ -401,27 +426,49 @@ const getPluginActions = (pluginName: string) => {
   return []
 }
 
-// 卸载插件
-const uninstallPlugin = async (pluginName: string) => {
+// 卸载插件 - 显示确认对话框
+const uninstallPlugin = (pluginName: string) => {
+  pluginToUninstall.value = pluginName
+  uninstallDialog.value = true
+}
+
+// 取消卸载
+const cancelUninstall = () => {
+  uninstallDialog.value = false
+  pluginToUninstall.value = ''
+}
+
+// 确认卸载插件
+const confirmUninstall = async () => {
+  if (!pluginToUninstall.value) return
+  
+  uninstalling.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+  
   try {
-    // 确认对话框
-    if (!confirm(`确定要卸载插件 "${pluginName}" 吗？这将删除所有插件文件和配置。`)) {
-      return
-    }
-    
     // 调用插件加载器卸载
     const pluginLoader = (window as any).__pluginLoader
     if (pluginLoader) {
-      const success = await pluginLoader.removePlugin(pluginName)
+      const success = await pluginLoader.removePlugin(pluginToUninstall.value)
       if (success) {
+        successMessage.value = `插件 "${pluginToUninstall.value}" 卸载成功！`
         console.log('插件卸载成功')
         await refreshPlugins()
       } else {
+        errorMessage.value = `插件 "${pluginToUninstall.value}" 卸载失败`
         console.error('插件卸载失败')
       }
+    } else {
+      errorMessage.value = '插件系统未初始化，请刷新页面后重试'
     }
-  } catch (error) {
+  } catch (error: any) {
+    errorMessage.value = `卸载失败: ${error.message || '未知错误'}`
     console.error('卸载插件失败:', error)
+  } finally {
+    uninstalling.value = false
+    uninstallDialog.value = false
+    pluginToUninstall.value = ''
   }
 }
 

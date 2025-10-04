@@ -497,7 +497,19 @@ export class PluginLoader {
     }
 
     // 删除文件
-    return packageManager.uninstallPlugin(pluginId)
+    const success = await packageManager.uninstallPlugin(pluginId)
+    
+    if (success) {
+      // 发送跨窗口事件通知插件已被完全卸载
+      try {
+        await emit('plugin:removed', { pluginName: pluginId })
+        console.log(`[PluginLoader] Emitted plugin:removed event for ${pluginId}`)
+      } catch (error) {
+        console.warn(`[PluginLoader] Failed to emit plugin:removed event:`, error)
+      }
+    }
+    
+    return success
   }
 
   /**

@@ -56,11 +56,21 @@ export class PetToolManager {
   private maxSessionAge = 30 * 60 * 1000 // 30分钟
   private toolUsageStats = new Map<string, { count: number; successRate: number; avgDuration: number }>()
   private toolRelations = new Map<string, Set<string>>() // 工具关联关系
+
+  constructor() {
+    // 定期清理过期会话
+    setInterval(() => this.cleanupExpiredSessions(), 5 * 60 * 1000) // 每5分钟清理一次
+  }
+
   /**
    * 生成工具列表提示词
    * 用于注入到桌宠 LLM 的系统提示词中
    */
-  generateToolPrompt(): string {
+  generateToolPrompt(options?: {
+    includeStats?: boolean
+    includeRecommendations?: boolean
+    sessionId?: string
+  }): string {
     const tools = toolManager.getTools()
 
     if (tools.length === 0) {
@@ -78,13 +88,40 @@ export class PetToolManager {
         ? `\n  示例: ${tool.examples.join(', ')}`
         : ''
 
+      // 添加使用统计信息（如果启用）
+      let statsInfo = ''
+      if (options?.includeStats) {
+        const stats = this.toolUsageStats.get(tool.name)
+        if (stats) {
+          statsInfo = `\n  使用次数: ${stats.count}, 成功率: ${(stats.successRate * 100).toFixed(1)}%`
+        }
+      }
+
       return `
 ### ${tool.name}
 ${tool.description}
 ${tool.category ? `分类: ${tool.category}` : ''}
 参数:
-${params}${examples}`
+${params}${examples}${statsInfo}`
     }).join('\n')
+
+    // 添加智能推荐（如果启用且有会话ID）
+    let recommendationsSection = ''
+    if (options?.includeRecommendations && options?.sessionId) {
+      const recommendations = this.getToolRecommendations(options.sessionId)
+      if (recommendations.length > 0) {
+        recommendationsSection = `
+
+## 推荐工具
+
+基于当前对话上下文，推荐以下工具：
+
+${recommendations.map(rec =>
+          `- **${rec.toolName}**: ${rec.reason} (置信度: ${(rec.confidence * 100).toFixed(0)}%)`
+        ).join('\n')}
+`
+      }
+    }
 
     return `
 ## 可用工具
@@ -100,7 +137,7 @@ ${params}${examples}`
 }
 \`\`\`
 
-${toolDescriptions}
+${toolDescriptions}${recommendationsSection}
 
 ## 工具使用规则
 
@@ -164,30 +201,61 @@ ${toolDescriptions}
    * 执行工具调用
    */
   async executeToolCall(toolCall: PetToolCall): Promise<PetToolResult> {
+    const startTime = performance.now()
+
     try {
       console.log(`[PetToolManager] Executing tool: ${toolCall.tool}`, toolCall.args)
 
-      const result = await toolManager.callTool(toolCall.tool, toolCall.args)
-
-      if (result.success) {
-        return {
-          success: true,
-          result: result.result,
-          toolName: toolCall.tool
-        }
-      } else {
-        return {
-          success: false,
-          error: result.error,
-          toolName: toolCall.tool
-        }
+      // 记录到会话（如果有会话ID）
+      if (toolCall.sessionId) {
+        this.recordToolCallToSession(toolCall.sessionId, toolCall)
       }
+
+      const result = await toolManager.callTool(toolCall.tool, toolCall.args)
+      const duration = performance.now() - startTime
+
+      const petResult: PetToolResult = {
+        success: result.success,
+        result: result.result,
+        error: result.error,
+        toolName: toolCall.tool,
+        duration,
+        suggestions: this.generateToolSuggestions(toolCall.tool, result.success),
+        context: toolCall.context
+      }
+
+      // 更新统计信息
+      this.updateToolStats(toolCall.tool, result.success, duration)
+
+      // 更新工具关联关系
+      if (toolCall.sessionId) {
+        this.updateToolRelations(toolCall.sessionId, toolCall.tool)
+      }
+
+      // 记录结果到会话
+      if (toolCall.sessionId) {
+        this.recordToolResultToSession(toolCall.sessionId, petResult)
+      }
+
+      return petResult
     } catch (error) {
-      return {
+      const duration = performance.now() - startTime
+      const petResult: PetToolResult = {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        toolName: toolCall.tool
+        toolName: toolCall.tool,
+        duration
       }
+
+      // 更新统计信息（失败）
+      this.updateToolStats(toolCall.tool, false, duration)
+
+      // 记录结果到会话
+      if (toolCall.sessionId) {
+        this.recordToolResultToSession(toolCall.sessionId, petResult)
+      }
+
+      return petResult
     }
   }
 
@@ -328,6 +396,238 @@ ${toolDescriptions}
     })
 
     return doc
+  }
+
+  /**
+   * 创建新的工具调用会话
+   */
+  createSession(sessionId?: string): string {
+    const id = sessionId || this.generateSessionId()
+    const session: ToolCallSession = {
+      id,
+      startTime: Date.now(),
+      calls: [],
+      context: {}
+    }
+    this.sessions.set(id, session)
+    return id
+  }
+
+  /**
+   * 获取会话信息
+   */
+  getSession(sessionId: string): ToolCallSession | undefined {
+    return this.sessions.get(sessionId)
+  }
+
+  /**
+   * 清理过期会话
+   */
+  private cleanupExpiredSessions(): void {
+    const now = Date.now()
+    const expiredSessions: string[] = []
+
+    this.sessions.forEach((session, id) => {
+      if (now - session.startTime > this.maxSessionAge) {
+        expiredSessions.push(id)
+      }
+    })
+
+    expiredSessions.forEach(id => {
+      this.sessions.delete(id)
+    })
+
+    if (expiredSessions.length > 0) {
+      console.log(`[PetToolManager] Cleaned up ${expiredSessions.length} expired sessions`)
+    }
+  }
+
+  /**
+   * 记录工具调用到会话
+   */
+  private recordToolCallToSession(sessionId: string, toolCall: PetToolCall): void {
+    const session = this.sessions.get(sessionId)
+    if (!session) {
+      // 如果会话不存在，创建一个新的
+      this.createSession(sessionId)
+      return this.recordToolCallToSession(sessionId, toolCall)
+    }
+
+    // 暂时添加一个占位符，等结果返回后更新
+    session.calls.push({
+      call: toolCall,
+      result: {
+        success: false,
+        toolName: toolCall.tool,
+        duration: 0
+      },
+      timestamp: Date.now()
+    })
+  }
+
+  /**
+   * 记录工具结果到会话
+   */
+  private recordToolResultToSession(sessionId: string, result: PetToolResult): void {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.calls.length === 0) return
+
+    // 更新最后一个调用的结果
+    const lastCall = session.calls[session.calls.length - 1]
+    if (lastCall.result.toolName === result.toolName) {
+      lastCall.result = result
+    }
+  }
+
+  /**
+   * 更新工具使用统计
+   */
+  private updateToolStats(toolName: string, success: boolean, duration: number): void {
+    const stats = this.toolUsageStats.get(toolName) || {
+      count: 0,
+      successRate: 0,
+      avgDuration: 0
+    }
+
+    const newCount = stats.count + 1
+    const newSuccessRate = (stats.successRate * stats.count + (success ? 1 : 0)) / newCount
+    const newAvgDuration = (stats.avgDuration * stats.count + duration) / newCount
+
+    this.toolUsageStats.set(toolName, {
+      count: newCount,
+      successRate: newSuccessRate,
+      avgDuration: newAvgDuration
+    })
+  }
+
+  /**
+   * 更新工具关联关系
+   */
+  private updateToolRelations(sessionId: string, currentTool: string): void {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.calls.length < 2) return
+
+    // 获取前一个工具
+    const previousCall = session.calls[session.calls.length - 2]
+    if (previousCall) {
+      const previousTool = previousCall.call.tool
+
+      // 更新关联关系
+      if (!this.toolRelations.has(previousTool)) {
+        this.toolRelations.set(previousTool, new Set())
+      }
+      this.toolRelations.get(previousTool)!.add(currentTool)
+    }
+  }
+
+  /**
+   * 生成工具建议
+   */
+  private generateToolSuggestions(toolName: string, _success: boolean): string[] {
+    const suggestions: string[] = []
+
+    // 基于工具关联关系推荐
+    const relatedTools = this.toolRelations.get(toolName)
+    if (relatedTools && relatedTools.size > 0) {
+      suggestions.push(...Array.from(relatedTools).slice(0, 3))
+    }
+
+    // 基于工具类别推荐
+    const currentTool = toolManager.getTool(toolName)
+    if (currentTool?.category) {
+      const sameCategory = toolManager.getTools()
+        .filter(t => t.category === currentTool.category && t.name !== toolName)
+        .slice(0, 2)
+        .map(t => t.name)
+      suggestions.push(...sameCategory)
+    }
+
+    return [...new Set(suggestions)] // 去重
+  }
+
+  /**
+   * 获取工具推荐
+   */
+  getToolRecommendations(sessionId: string): ToolRecommendation[] {
+    const session = this.sessions.get(sessionId)
+    if (!session || session.calls.length === 0) return []
+
+    const recommendations: ToolRecommendation[] = []
+    const recentCalls = session.calls.slice(-3) // 最近3次调用
+
+    // 基于最近使用的工具推荐相关工具
+    recentCalls.forEach(({ call }) => {
+      const relatedTools = this.toolRelations.get(call.tool)
+      if (relatedTools) {
+        relatedTools.forEach(toolName => {
+          const tool = toolManager.getTool(toolName)
+          if (tool) {
+            recommendations.push({
+              toolName,
+              reason: `经常与 ${call.tool} 一起使用`,
+              confidence: 0.7
+            })
+          }
+        })
+      }
+    })
+
+    // 基于失败的工具推荐替代方案
+    const failedCalls = recentCalls.filter(({ result }) => !result.success)
+    failedCalls.forEach(({ call }) => {
+      const currentTool = toolManager.getTool(call.tool)
+      if (currentTool?.category) {
+        const alternatives = toolManager.getTools()
+          .filter(t => t.category === currentTool.category && t.name !== call.tool)
+          .slice(0, 2)
+
+        alternatives.forEach(alt => {
+          recommendations.push({
+            toolName: alt.name,
+            reason: `${call.tool} 执行失败，可尝试此替代方案`,
+            confidence: 0.6
+          })
+        })
+      }
+    })
+
+    // 去重并按置信度排序
+    const uniqueRecommendations = recommendations
+      .filter((rec, index, arr) =>
+        arr.findIndex(r => r.toolName === rec.toolName) === index
+      )
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 5) // 最多5个推荐
+
+    return uniqueRecommendations
+  }
+
+  /**
+   * 获取详细的工具使用统计
+   */
+  getDetailedStats() {
+    return {
+      ...this.getToolStats(),
+      sessions: {
+        active: this.sessions.size,
+        totalCalls: Array.from(this.sessions.values())
+          .reduce((sum, session) => sum + session.calls.length, 0)
+      },
+      toolStats: Object.fromEntries(this.toolUsageStats),
+      toolRelations: Object.fromEntries(
+        Array.from(this.toolRelations.entries()).map(([tool, relations]) => [
+          tool,
+          Array.from(relations)
+        ])
+      )
+    }
+  }
+
+  /**
+   * 生成会话ID
+   */
+  private generateSessionId(): string {
+    return `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 }
 
