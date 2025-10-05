@@ -7,6 +7,9 @@ import type { Router } from 'vue-router'
 import type { PluginDefinition, PluginContext, PluginMetadata, PluginMessage, PluginSettingsAction } from '../types/api'
 import { HookEngine } from './hookEngine'
 import { PluginEventBus, safeExecute } from './pluginApi'
+import { PluginPageManager } from './pluginPageManager'
+import { dynamicPageLoader } from './dynamicPageLoader'
+import { pluginComponentRegistry } from './pluginComponentRegistry'
 import { pluginCommunication } from './pluginCommunication'
 import { componentInjectionManager } from './componentInjection'
 import { vueInstanceInterceptor } from './vueInstanceInterceptor'
@@ -27,6 +30,7 @@ export class PluginLoader {
   private eventBus = new PluginEventBus()
   private loadedPlugins = new Map<string, PluginDefinition>()
   private pluginContexts = new Map<string, PluginContext>()
+  private pageManager: PluginPageManager | null = null
   private pluginStore: any = null
   private pluginSettingsActions = new Map<string, PluginSettingsAction[]>()
 
@@ -42,6 +46,12 @@ export class PluginLoader {
 
     // 初始化DOM注入管理器
     domInjectionManager.initialize()
+
+    // 初始化页面管理器
+    this.pageManager = new PluginPageManager(router)
+
+    // 初始化插件组件注册表
+    pluginComponentRegistry.initialize(app)
 
     // 初始化插件包管理器
     await packageManager.initialize()
@@ -350,6 +360,11 @@ export class PluginLoader {
 
       // 清理设置操作
       this.pluginSettingsActions.delete(pluginId)
+
+      // 清理插件页面
+      if (this.pageManager) {
+        this.pageManager.cleanupPluginPages(pluginId)
+      }
       
       // 强制刷新当前路由以清理残留的组件注入
       await this.forceRefreshCurrentRoute()
@@ -395,6 +410,13 @@ export class PluginLoader {
       enabled: true,
       loaded: true
     }))
+  }
+
+  /**
+   * 获取页面管理器
+   */
+  getPageManager(): PluginPageManager | null {
+    return this.pageManager
   }
 
   /**
@@ -654,6 +676,56 @@ export class PluginLoader {
       addRoute: (route) => {
         router.addRoute(route)
         console.log(`[Plugin ${plugin.name}] Added route: ${route.path}`)
+      },
+
+      registerPage: (config) => {
+        if (!this.pageManager) {
+          throw new Error('Page manager not initialized')
+        }
+        
+        const pageConfig = {
+          ...config,
+          pluginId: plugin.name
+        }
+        
+        return this.pageManager.registerPage(pageConfig)
+      },
+
+      navigateToPage: (pageId: string) => {
+        if (!this.pageManager) {
+          throw new Error('Page manager not initialized')
+        }
+        
+        this.pageManager.navigateToPage(pageId)
+      },
+
+      registerExternalPage: (config) => {
+        if (!this.pageManager) {
+          throw new Error('Page manager not initialized')
+        }
+        
+        // 创建异步组件
+        const asyncComponent = dynamicPageLoader.createAsyncComponent(
+          plugin.name,
+          config.componentPath,
+          config.asyncOptions
+        )
+        
+        // 转换为标准页面配置
+        const pageConfig = {
+          path: config.path,
+          name: config.name,
+          component: asyncComponent,
+          title: config.title,
+          icon: config.icon,
+          description: config.description,
+          showInNavigation: config.showInNavigation,
+          navigationGroup: config.navigationGroup,
+          meta: config.meta,
+          pluginId: plugin.name
+        }
+        
+        return this.pageManager.registerPage(pageConfig)
       },
 
       debug: (...args) => {
