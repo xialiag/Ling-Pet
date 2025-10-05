@@ -4,12 +4,11 @@
 
 本插件系统包含以下核心文档：
 
-1. **[插件架构设计](./plugin-architecture.md)** - 系统整体架构和设计理念
-2. **[运行时架构](./plugin-runtime-architecture.md)** - 编译后应用的插件加载机制
-3. **[后端实现指南](./plugin-backend-implementation.md)** - Rust后端开发详细说明
-4. **[开发完整指南](./plugin-development-guide.md)** - 从入门到实战的开发教程
-5. **[插件间通信](./plugin-communication.md)** - 插件间通信使用指南
-6. **[动态注入方案](./DYNAMIC_INJECTION_SOLUTION.md)** - 无需预留注入点的组件注入
+1. **[完整架构设计](./plugin-architecture-complete.md)** - 系统完整架构和设计理念
+2. **[后端实现指南](./plugin-backend-implementation.md)** - Rust后端开发详细说明
+3. **[开发完整指南](./plugin-development-guide.md)** - 从入门到实战的开发教程
+4. **[插件间通信](./plugin-communication.md)** - 插件间通信使用指南
+5. **[动态注入方案](./DYNAMIC_INJECTION_SOLUTION.md)** - 无需预留注入点的组件注入
 
 ## 快速开始
 

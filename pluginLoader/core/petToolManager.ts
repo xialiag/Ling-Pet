@@ -220,7 +220,7 @@ ${toolDescriptions}${recommendationsSection}
         error: result.error,
         toolName: toolCall.tool,
         duration,
-        suggestions: this.generateToolSuggestions(toolCall.tool, result.success),
+        suggestions: this.generateToolSuggestions(toolCall.tool),
         context: toolCall.context
       }
 
@@ -523,7 +523,7 @@ ${toolDescriptions}${recommendationsSection}
   /**
    * 生成工具建议
    */
-  private generateToolSuggestions(toolName: string, _success: boolean): string[] {
+  private generateToolSuggestions(toolName: string): string[] {
     const suggestions: string[] = []
 
     // 基于工具关联关系推荐

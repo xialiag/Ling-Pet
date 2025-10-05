@@ -226,7 +226,7 @@ export default definePlugin({
                 await context.fs.mkdir(tempDir, { recursive: true })
 
                 let downloadCount = 0
-                const downloadInfos = analyzeSuitData(suitData, suitType, suitName)
+                const downloadInfos = analyzeSuitData(suitData, suitType)
                 
                 context.debug(`准备下载 ${downloadInfos.length} 个文件...`)
 
@@ -284,7 +284,7 @@ export default definePlugin({
         /**
          * 分析装扮数据，提取所有下载链接
          */
-        const analyzeSuitData = (suitData: any, suitType: 'normal' | 'dlc', _suitName: string): Array<{url: string, fileName: string, pkgName: string}> => {
+        const analyzeSuitData = (suitData: any, suitType: 'normal' | 'dlc'): Array<{url: string, fileName: string, pkgName: string}> => {
             const downloadInfos: Array<{url: string, fileName: string, pkgName: string}> = []
 
             if (suitType === 'normal') {

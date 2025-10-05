@@ -12,6 +12,7 @@ const OUTPUT_FILE = join(process.cwd(), 'pluginLoader', 'tools', 'symbol-map.jso
 
 /**
  * 扫描Vue组件
+ * TODO: 实现实际的组件扫描逻辑
  */
 async function scanComponents(_dir: string): Promise<ComponentSymbol[]> {
   const components: ComponentSymbol[] = []
@@ -60,6 +61,7 @@ async function scanComponents(_dir: string): Promise<ComponentSymbol[]> {
 
 /**
  * 扫描Pinia Stores
+ * TODO: 实现实际的Store扫描逻辑
  */
 async function scanStores(_dir: string): Promise<StoreSymbol[]> {
   const stores: StoreSymbol[] = []
@@ -99,6 +101,7 @@ async function scanStores(_dir: string): Promise<StoreSymbol[]> {
 
 /**
  * 扫描服务函数
+ * TODO: 实现实际的服务扫描逻辑
  */
 async function scanServices(_dir: string): Promise<ServiceSymbol[]> {
   const services: ServiceSymbol[] = []

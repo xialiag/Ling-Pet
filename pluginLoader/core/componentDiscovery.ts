@@ -4,7 +4,6 @@
  */
 
 import type { App, Component } from 'vue'
-import { componentInjectionManager } from './componentInjection'
 
 export interface ComponentRegistration {
   name: string

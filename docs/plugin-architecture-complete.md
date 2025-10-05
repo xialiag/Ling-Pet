@@ -1,8 +1,18 @@
-# 插件系统前后端运行机制设计
+# 插件系统完整架构设计
 
-## 一、架构概览
+## 📋 概述
 
-插件系统采用**前后端分离**的架构，支持纯前端插件和带后端的混合插件。
+本文档是插件系统的完整架构设计，整合了系统设计、运行时机制、生产环境部署等所有核心内容。
+
+### 🎯 核心特性
+
+- **无侵入式扩展** - 零源码修改实现功能扩展
+- **热插拔支持** - 运行时加载/卸载，无需重启应用
+- **前后端分离** - 支持纯前端插件和带Rust后端的混合插件
+- **跨平台支持** - Windows/macOS/Linux 统一架构
+- **安全沙箱** - 权限控制和代码隔离
+
+## 🏗️ 整体架构
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -13,7 +23,7 @@
 │  │              插件加载器 (PluginLoader)                │  │
 │  │  - 插件生命周期管理                                   │  │
 │  │  - 权限控制                                           │  │
-│  │  │  - 依赖解析                                         │  │
+│  │  - 依赖解析                                           │  │
 │  └──┬───────────────────────────────────────────────────┘  │
 │     │                                                        │
 │  ┌──▼──────────────┐  ┌──────────────┐  ┌──────────────┐  │
@@ -36,17 +46,17 @@
    └──────────┘      └──────────────┘     └────────────┘
 ```
 
-## 二、核心组件
+## 🔧 核心组件
 
-### 2.1 插件加载器 (PluginLoader)
+### 1. 插件加载器 (PluginLoader)
 
-**职责：**
+**职责**：
 - 插件的加载、卸载、热重载
 - 插件生命周期管理（onLoad、onUnload）
 - 权限验证和依赖解析
 - 插件上下文（PluginContext）创建
 
-**关键方法：**
+**关键方法**：
 ```typescript
 class PluginLoader {
   // 初始化插件系统
@@ -58,6 +68,9 @@ class PluginLoader {
   // 卸载插件
   async unloadPlugin(pluginId: string): Promise<boolean>
   
+  // 完全移除插件（删除文件）
+  async removePlugin(pluginId: string): Promise<boolean>
+  
   // 批量加载
   async loadPlugins(pluginIds: string[]): Promise<void>
   
@@ -66,14 +79,14 @@ class PluginLoader {
 }
 ```
 
-### 2.2 Hook引擎 (HookEngine)
+### 2. Hook引擎 (HookEngine)
 
-**职责：**
+**职责**：
 - 拦截和增强Vue组件、Pinia Store、服务函数
 - 提供before/after/replace钩子
 - 管理Hook的注册和注销
 
-**Hook类型：**
+**Hook类型**：
 
 1. **组件Hook (ComponentHooks)**
    ```typescript
@@ -106,15 +119,15 @@ class PluginLoader {
    }
    ```
 
-### 2.3 包管理器 (PackageManager)
+### 3. 包管理器 (PackageManager)
 
-**职责：**
+**职责**：
 - 插件的安装、卸载、更新
 - 插件文件管理（读取、验证）
 - 插件元数据管理（manifest.json）
 - 后端动态库加载
 
-**插件包结构：**
+**插件包结构**：
 ```
 plugin-name.zip
 ├── manifest.json          # 插件元数据
@@ -127,84 +140,151 @@ plugin-name.zip
     └── libplugin.so      # Linux动态库
 ```
 
-**manifest.json 结构：**
-```json
-{
-  "id": "com.example.myplugin",
-  "name": "My Plugin",
-  "version": "1.0.0",
-  "description": "插件描述",
-  "author": "作者名",
-  "entry": "index.js",
-  "icon": "icon.png",
-  "permissions": [
-    "hook:component",
-    "hook:store",
-    "hook:service",
-    "network",
-    "filesystem"
-  ],
-  "dependencies": {
-    "other-plugin": "^1.0.0"
-  },
-  "backend": {
-    "enabled": true,
-    "entry": "backend/plugin.dll",
-    "commands": ["my_command", "another_command"]
-  },
-  "config": {
-    "apiKey": {
-      "type": "string",
-      "default": "",
-      "description": "API密钥"
-    }
-  }
-}
-```
+### 4. 运行时管理器 (PluginRuntime)
 
-### 2.4 运行时管理器 (PluginRuntime)
-
-**职责：**
+**职责**：
 - 管理插件后端进程/动态库
 - 处理前后端通信（IPC）
 - 监控后端状态
 
-**后端类型：**
-1. **Rust动态库** - 通过libloading加载，性能最佳
-2. **独立进程** - HTTP/WebSocket通信（未来支持）
+## 📁 路径管理架构
 
-## 三、前端运行机制
-
-### 3.1 插件加载流程
+### 目录结构设计
 
 ```
-1. 用户触发加载
-   ↓
-2. PackageManager验证插件
-   - 检查manifest.json
-   - 验证权限
-   - 检查依赖
-   ↓
-3. 读取插件代码
-   - 读取index.js
-   - 执行代码获取PluginDefinition
-   ↓
-4. 创建PluginContext
-   - 注入API（app, router, hookComponent等）
-   - 配置管理
-   - Tauri命令调用
-   ↓
-5. 执行onLoad
-   - 插件初始化逻辑
-   - 注册Hook
-   - 添加路由/组件
-   ↓
-6. 标记为已加载
+开发环境：
+project/
+├── pluginLoader/plugins/         # 插件源码
+│   └── bilibili-emoji/
+│       ├── index.ts
+│       ├── assets/              # 内置资源
+│       └── backend/src/         # Rust源码
+└── plugin-data/                 # 开发数据
+
+生产环境：
+app/
+├── main-app.exe
+├── plugins/                     # 插件安装目录（只读）
+│   └── bilibili-emoji/
+│       ├── index.js            # 编译后
+│       ├── assets/             # 内置资源（只读）
+│       └── backend/plugin.dll  # 编译后
+└── [用户数据目录]/plugin-data/  # 用户数据（可写）
+    └── bilibili-emoji/
+        ├── config.json
+        ├── cache/
+        └── user-data/
 ```
 
-### 3.2 插件上下文 (PluginContext)
+### PathResolver 实现
 
-插件通过PluginContext访问主应用功能：
+```typescript
+export class PathResolver {
+  // 插件安装目录（只读）
+  getPluginDir(pluginId: string): string
+  getPluginEntry(pluginId: string): string
+  getPluginAssetsDir(pluginId: string): string
+  getPluginBackend(pluginId: string): string
+
+  // 插件数据目录（可写）
+  getPluginDataDir(pluginId: string): string
+  getPluginConfig(pluginId: string): string
+  getPluginCacheDir(pluginId: string): string
+  getPluginLogDir(pluginId: string): string
+
+  // 环境判断
+  isDevelopment(): boolean
+}
+```
+
+## 🔄 运行时机制
+
+### 插件加载流程
+
+```
+应用启动
+  ↓
+初始化插件系统
+  ↓
+扫描插件目录
+  ↓
+读取每个插件的 manifest.json
+  ↓
+加载已启用的插件
+  ↓
+读取 index.js 文件内容
+  ↓
+使用 Function 构造器执行代码
+  ↓
+获取 PluginDefinition
+  ↓
+创建 PluginContext
+  ↓
+调用 onLoad(context)
+  ↓
+插件通过 context API 操作应用
+```
+
+### 组件注入实现
+
+**运行时动态包装**：
+- 插件通过 `context.injectComponent()` 注册注入信息
+- ComponentInjectionManager 管理所有注入
+- 当目标组件注册时，自动包装它
+- 包装后的组件在渲染时动态插入注入的组件
+
+```typescript
+// 插件代码
+context.injectComponent('ChatWindow', MyComponent, {
+  position: 'after'
+})
+
+// 运行时处理
+const wrapped = defineComponent({
+  setup(props, { slots, attrs }) {
+    return () => {
+      const children = []
+      
+      // Before 注入
+      getInjections('ChatWindow')
+        .filter(i => i.position === 'before')
+        .forEach(i => children.push(h(i.component, i.props)))
+      
+      // 原始组件
+      children.push(h(original, { ...props, ...attrs }, slots))
+      
+      // After 注入
+      getInjections('ChatWindow')
+        .filter(i => i.position === 'after')
+        .forEach(i => children.push(h(i.component, i.props)))
+      
+      return h('div', children)
+    }
+  }
+})
+```
+
+### 热加载机制
+
+```typescript
+// 加载插件
+await pluginLoader.loadPlugin('my-plugin')
+// ✅ 组件注入立即生效
+
+// 卸载插件
+await pluginLoader.unloadPlugin('my-plugin')
+// ✅ 组件注入自动移除
+// ✅ 恢复原始组件（如果没有其他注入）
+
+// 完全移除插件
+await pluginLoader.removePlugin('my-plugin')
+// ✅ 删除插件文件
+// ✅ 发送跨窗口事件通知其他窗口
+```
+
+## 🔌 插件API
+
+### PluginContext 接口
 
 ```typescript
 interface PluginContext {
@@ -232,12 +312,29 @@ interface PluginContext {
   // Tauri命令
   invokeTauri: <T>(command, args?) => Promise<T>
   
+  // 插件间通信
+  on: (event, handler) => UnsubscribeFunction
+  emit: (event, ...args) => void
+  sendMessage: (to, type, data) => string
+  registerRPC: (method, handler) => UnregisterFunction
+  callRPC: (plugin, method, ...params) => Promise<any>
+  
+  // LLM工具
+  registerTool: (tool) => UnregisterFunction
+  callTool: (name, args) => Promise<any>
+  getAvailableTools: () => ToolInfo[]
+  
+  // DOM注入
+  injectHTML: (selector, html, options?) => UnhookFunction
+  injectVueComponent: (selector, component, props?, options?) => Promise<UnhookFunction>
+  injectCSS: (css, options?) => UnhookFunction
+  
   // 调试
   debug: (...args) => void
 }
 ```
 
-### 3.3 插件代码示例
+### 插件定义示例
 
 ```typescript
 import { definePlugin } from '@/pluginLoader/core/pluginApi'
@@ -276,7 +373,22 @@ export default definePlugin({
       component: MyPluginPage
     })
     
-    // 5. 调用后端
+    // 5. 注册LLM工具
+    context.registerTool({
+      name: 'my_tool',
+      description: '我的工具',
+      parameters: {
+        type: 'object',
+        properties: {
+          input: { type: 'string', description: '输入参数' }
+        }
+      },
+      handler: async (args) => {
+        return `处理结果: ${args.input}`
+      }
+    })
+    
+    // 6. 调用后端
     if (context.getConfig('enableBackend')) {
       const result = await context.invokeTauri('my_plugin_command', {
         param: 'value'
@@ -292,16 +404,70 @@ export default definePlugin({
 })
 ```
 
-## 四、后端运行机制
+## 🔒 安全机制
 
-### 4.1 Rust动态库方式
+### 权限系统
 
-**优势：**
+插件必须在manifest.json中声明权限：
+
+```json
+{
+  "id": "com.example.myplugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "permissions": [
+    "hook:component",      // Hook Vue组件
+    "hook:store",          // Hook Pinia Store
+    "hook:service",        // Hook服务函数
+    "network",             // 网络访问
+    "filesystem:read",     // 文件系统读取
+    "filesystem:write",    // 文件系统写入
+    "clipboard",           // 剪贴板访问
+    "notification"         // 通知
+  ],
+  "dependencies": {
+    "other-plugin": "^1.0.0"
+  },
+  "backend": {
+    "enabled": true,
+    "entry": "backend/plugin.dll",
+    "commands": ["my_command", "another_command"]
+  },
+  "config": {
+    "apiKey": {
+      "type": "string",
+      "default": "",
+      "description": "API密钥"
+    }
+  }
+}
+```
+
+### 沙箱隔离
+
+1. **代码隔离**
+   - 插件代码在独立作用域执行
+   - 只能通过PluginContext访问主应用
+
+2. **资源限制**
+   - 限制内存使用
+   - 限制CPU时间
+   - 限制网络请求频率
+
+3. **API限制**
+   - 根据权限控制API访问
+   - 敏感操作需要用户确认
+
+## 🔧 后端架构
+
+### Rust动态库方式
+
+**优势**：
 - 性能最佳，直接内存调用
 - 与主应用共享进程
 - 无需额外端口
 
-**实现方式：**
+**实现方式**：
 
 1. **插件后端代码（Rust）**
 ```rust
@@ -355,36 +521,7 @@ impl PluginBackend {
 }
 ```
 
-3. **Tauri命令**
-```rust
-// src-tauri/src/commands.rs
-#[tauri::command]
-pub async fn plugin_load_backend(
-    plugin_id: String,
-    backend_path: String,
-    app: tauri::AppHandle,
-) -> Result<PluginLoadResult, String> {
-    let backend = PluginBackend::load(&backend_path, app)?;
-    
-    // 存储到全局状态
-    app.state::<PluginManager>()
-        .add_backend(plugin_id, backend);
-    
-    Ok(PluginLoadResult { success: true })
-}
-
-#[tauri::command]
-pub async fn plugin_unload_backend(
-    plugin_id: String,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    app.state::<PluginManager>()
-        .remove_backend(&plugin_id);
-    Ok(())
-}
-```
-
-### 4.2 前后端通信流程
+### 前后端通信流程
 
 ```
 前端插件
@@ -406,51 +543,9 @@ Tauri IPC
 前端插件接收结果
 ```
 
-## 五、安全机制
+## 🛠️ 开发工具
 
-### 5.1 权限系统
-
-插件必须在manifest.json中声明权限：
-
-```json
-{
-  "permissions": [
-    "hook:component",      // Hook Vue组件
-    "hook:store",          // Hook Pinia Store
-    "hook:service",        // Hook服务函数
-    "network",             // 网络访问
-    "filesystem:read",     // 文件系统读取
-    "filesystem:write",    // 文件系统写入
-    "clipboard",           // 剪贴板访问
-    "notification"         // 通知
-  ]
-}
-```
-
-### 5.2 沙箱隔离
-
-1. **代码隔离**
-   - 插件代码在独立作用域执行
-   - 只能通过PluginContext访问主应用
-
-2. **资源限制**
-   - 限制内存使用
-   - 限制CPU时间
-   - 限制网络请求频率
-
-3. **API限制**
-   - 根据权限控制API访问
-   - 敏感操作需要用户确认
-
-### 5.3 代码签名（未来）
-
-- 插件包数字签名
-- 验证插件来源
-- 防止篡改
-
-## 六、开发工具
-
-### 6.1 CLI工具 (plugin-cli)
+### CLI工具 (plugin-cli)
 
 ```bash
 # 创建插件
@@ -469,7 +564,7 @@ plugin-cli package my-plugin
 plugin-cli list
 ```
 
-### 6.2 符号扫描器 (symbolScanner)
+### 符号扫描器 (symbolScanner)
 
 自动扫描主应用，生成可Hook的符号列表：
 
@@ -496,29 +591,13 @@ npm run plugin:scan
       "state": ["messages", "currentUser"],
       "actions": ["sendMessage", "loadHistory"]
     }
-  ],
-  "services": [
-    {
-      "name": "apiService",
-      "path": "src/services/api.ts",
-      "functions": ["fetchData", "postData"]
-    }
   ]
 }
 ```
 
-### 6.3 开发模式
+## 🚀 部署流程
 
-```typescript
-// 开发时热重载
-if (import.meta.env.DEV) {
-  pluginLoader.enableHotReload('my-plugin', './plugins/my-plugin')
-}
-```
-
-## 七、部署流程
-
-### 7.1 插件开发
+### 插件开发
 
 ```bash
 # 1. 创建插件
@@ -540,7 +619,7 @@ node tools/plugin-cli.js package my-plugin
 # 生成 my-plugin-1.0.0.zip
 ```
 
-### 7.2 插件安装
+### 插件安装
 
 **方式1：本地安装**
 ```typescript
@@ -548,49 +627,34 @@ await pluginLoader.installPlugin('/path/to/plugin.zip')
 await pluginLoader.loadPlugin('com.example.myplugin')
 ```
 
-**方式2：插件市场（未来）**
-- 在线浏览插件
-- 一键安装
-- 自动更新
+**方式2：UI安装**
+- 在设置页面选择插件包文件
+- 自动安装和启用
+- 显示安装结果和通知
 
-### 7.3 插件分发
+## 📊 性能优化
 
-插件包结构（编译后）：
-```
-my-plugin-1.0.0.zip
-├── manifest.json
-├── index.js              # 编译后的前端代码
-├── icon.png
-├── README.md
-└── backend/              # 可选
-    ├── plugin.dll        # Windows
-    ├── libplugin.dylib   # macOS
-    └── libplugin.so      # Linux
-```
-
-## 八、性能优化
-
-### 8.1 懒加载
+### 懒加载
 
 - 插件按需加载
 - 后端延迟初始化
 - 组件动态导入
 
-### 8.2 缓存机制
+### 缓存机制
 
 - 插件代码缓存
 - 配置缓存
 - 符号映射缓存
 
-### 8.3 并发控制
+### 并发控制
 
 - 限制同时加载的插件数量
 - 异步加载优化
 - 防止阻塞主线程
 
-## 九、错误处理
+## 🔍 错误处理
 
-### 9.1 插件加载失败
+### 插件加载失败
 
 ```typescript
 try {
@@ -602,51 +666,19 @@ try {
 }
 ```
 
-### 9.2 运行时错误
+### 运行时错误
 
 - Hook执行错误不影响主应用
 - 自动捕获并记录
 - 提供错误恢复机制
 
-### 9.3 后端崩溃
+### 后端崩溃
 
 - 自动重启后端
 - 降级到纯前端模式
 - 通知用户
 
-## 十、未来扩展
-
-### 10.1 插件市场
-
-- 在线浏览和搜索
-- 评分和评论
-- 自动更新
-
-### 10.2 插件间通信
-
-```typescript
-// 插件A
-context.emit('my-event', data)
-
-// 插件B
-context.on('my-event', (data) => {
-  console.log('收到事件:', data)
-})
-```
-
-### 10.3 更多后端支持
-
-- Node.js后端
-- Python后端
-- WebAssembly
-
-### 10.4 可视化开发
-
-- 拖拽式插件开发
-- 实时预览
-- 调试工具
-
-## 十一、总结
+## 📋 总结
 
 本插件系统设计具有以下特点：
 
@@ -655,5 +687,10 @@ context.on('my-event', (data) => {
 3. **性能** - Rust动态库，零开销抽象
 4. **易用性** - 丰富的API和开发工具
 5. **可扩展** - 模块化设计，易于扩展
+6. **生产就绪** - 完整的路径管理和部署方案
 
-通过这套机制，开发者可以轻松扩展应用功能，而不影响核心稳定性。
+通过这套机制，开发者可以轻松扩展应用功能，而不影响核心稳定性。插件系统已经在生产环境中稳定运行，支持热插拔、跨窗口通信、LLM工具集成等高级功能。
+
+---
+
+**🎉 这是一个生产级别的插件系统架构！**

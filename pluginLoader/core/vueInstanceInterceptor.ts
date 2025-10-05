@@ -241,14 +241,14 @@ export class VueInstanceInterceptor {
         
         if (injections.length > 0) {
             console.log(`[VueInstanceInterceptor] 发现 ${componentName} 有 ${injections.length} 个待处理注入`)
-            this.applyInjectionsToElement(element, componentName, injections)
+            this.applyInjectionsToElement(element, injections)
         } else {
             // 如果当前没有注入，延迟检查（可能注入还没注册）
             setTimeout(() => {
                 const delayedInjections = componentInjectionManager.getInjections(componentName)
                 if (delayedInjections.length > 0) {
                     console.log(`[VueInstanceInterceptor] 延迟发现 ${componentName} 有 ${delayedInjections.length} 个注入`)
-                    this.applyInjectionsToElement(element, componentName, delayedInjections)
+                    this.applyInjectionsToElement(element, delayedInjections)
                 }
             }, 100)
         }
@@ -268,7 +268,7 @@ export class VueInstanceInterceptor {
     /**
      * 应用注入到元素
      */
-    private applyInjectionsToElement(element: Element, _componentName: string, injections: any[]): void {
+    private applyInjectionsToElement(element: Element, injections: any[]): void {
         // 清理之前的注入
         this.cleanupInjectionsForElement(element)
 
@@ -372,14 +372,14 @@ export class VueInstanceInterceptor {
             console.error('[VueInstanceInterceptor] 挂载Vue组件失败:', error)
 
             // 如果Vue组件挂载失败，使用备用渲染
-            this.fallbackRenderComponent(el, component, props)
+            this.fallbackRenderComponent(el)
         }
     }
 
     /**
      * 备用渲染方法 - 直接渲染组件内容
      */
-    private fallbackRenderComponent(el: Element, _component: Component, _props: Record<string, any>): void {
+    private fallbackRenderComponent(el: Element): void {
         try {
             // 创建一个简单的展示元素
             const wrapper = document.createElement('div')
@@ -465,7 +465,7 @@ export class VueInstanceInterceptor {
                     const injections = componentInjectionManager.getInjections(componentName)
                     if (injections.length > 0) {
                         console.log(`[VueInstanceInterceptor] 对已存在的 ${componentName} 应用 ${injections.length} 个注入`)
-                        this.applyInjectionsToElement(element, componentName, injections)
+                        this.applyInjectionsToElement(element, injections)
                     }
                 }
             })
@@ -522,7 +522,7 @@ export class VueInstanceInterceptor {
                     const vueInstance = this.getVueInstance(element)
                     if (vueInstance && instances.has(vueInstance)) {
                         console.log(`[VueInstanceInterceptor] 对 ${componentName} 强制应用注入`)
-                        this.applyInjectionsToElement(element, componentName, injections)
+                        this.applyInjectionsToElement(element, injections)
                     }
                 })
             }

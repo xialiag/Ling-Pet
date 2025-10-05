@@ -5,7 +5,6 @@
 
 import type { App, Plugin } from 'vue'
 import { componentDiscoveryManager } from './componentDiscovery'
-import { componentRuntimeWrapper } from './componentWrapper'
 import { componentInjectionManager } from './componentInjection'
 
 /**
