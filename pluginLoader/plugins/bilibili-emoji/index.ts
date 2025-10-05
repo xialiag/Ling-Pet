@@ -24,14 +24,169 @@ export default definePlugin({
     name: 'bilibili-emoji',
     version: '3.0.0',
     description: 'B站表情包管理、下载和发送（支持DLC，智能提取）',
+    author: 'Plugin System',
+
+    // 配置Schema
+    configSchema: {
+        basic: {
+            type: 'group',
+            label: '基础设置',
+            description: '表情包插件的基本配置',
+            expanded: true,
+            children: {
+                enabled: {
+                    type: 'boolean',
+                    label: '启用表情包功能',
+                    description: '是否启用表情包管理和发送功能',
+                    default: true
+                },
+                autoScan: {
+                    type: 'boolean',
+                    label: '自动扫描表情包',
+                    description: '插件加载时自动扫描本地表情包',
+                    default: true
+                },
+                maxDisplaySize: {
+                    type: 'number',
+                    label: '表情包最大显示尺寸',
+                    description: '聊天中显示表情包的最大尺寸（像素）',
+                    default: 200,
+                    min: 50,
+                    max: 500,
+                    unit: 'px'
+                }
+            }
+        },
+        download: {
+            type: 'group',
+            label: '下载设置',
+            description: '表情包下载相关配置',
+            children: {
+                enableDownload: {
+                    type: 'boolean',
+                    label: '启用在线下载',
+                    description: '是否允许从B站下载表情包',
+                    default: true
+                },
+                downloadTimeout: {
+                    type: 'number',
+                    label: '下载超时时间',
+                    description: '单个文件下载的超时时间',
+                    default: 30,
+                    min: 10,
+                    max: 120,
+                    unit: '秒',
+                    condition: (config) => config.download?.enableDownload === true
+                },
+                maxConcurrent: {
+                    type: 'number',
+                    label: '最大并发下载数',
+                    description: '同时下载的最大文件数量',
+                    default: 5,
+                    min: 1,
+                    max: 20,
+                    condition: (config) => config.download?.enableDownload === true
+                },
+                autoCleanTemp: {
+                    type: 'boolean',
+                    label: '自动清理临时文件',
+                    description: '下载完成后自动清理临时目录',
+                    default: true,
+                    condition: (config) => config.download?.enableDownload === true
+                }
+            }
+        },
+        display: {
+            type: 'group',
+            label: '显示设置',
+            description: '表情包显示相关配置',
+            children: {
+                showInChat: {
+                    type: 'boolean',
+                    label: '在聊天中显示表情包',
+                    description: '是否在聊天消息中显示表情包',
+                    default: true
+                },
+                enableHover: {
+                    type: 'boolean',
+                    label: '启用悬停效果',
+                    description: '鼠标悬停时放大表情包',
+                    default: true,
+                    condition: (config) => config.display?.showInChat === true
+                },
+                borderRadius: {
+                    type: 'range',
+                    label: '圆角大小',
+                    description: '表情包显示的圆角大小',
+                    default: 8,
+                    min: 0,
+                    max: 20,
+                    step: 1,
+                    unit: 'px',
+                    condition: (config) => config.display?.showInChat === true
+                }
+            }
+        },
+        advanced: {
+            type: 'group',
+            label: '高级设置',
+            description: '高级用户配置选项',
+            collapsible: true,
+            expanded: false,
+            children: {
+                debugMode: {
+                    type: 'boolean',
+                    label: '调试模式',
+                    description: '启用详细的调试日志输出',
+                    default: false
+                },
+                useBackend: {
+                    type: 'boolean',
+                    label: '使用后端API',
+                    description: '优先使用插件后端进行搜索和下载',
+                    default: true
+                },
+                customApiEndpoint: {
+                    type: 'string',
+                    label: '自定义API端点',
+                    description: '自定义B站API端点（高级用户）',
+                    placeholder: 'https://api.bilibili.com',
+                    condition: (config) => config.advanced?.debugMode === true
+                }
+            }
+        }
+    },
 
     async onLoad(context: PluginContext) {
         context.debug('B站表情包插件加载中...')
 
+        // 读取配置
+        const config = {
+            enabled: context.getConfig('basic.enabled', true),
+            autoScan: context.getConfig('basic.autoScan', true),
+            maxDisplaySize: context.getConfig('basic.maxDisplaySize', 200),
+            enableDownload: context.getConfig('download.enableDownload', true),
+            downloadTimeout: context.getConfig('download.downloadTimeout', 30),
+            maxConcurrent: context.getConfig('download.maxConcurrent', 5),
+            autoCleanTemp: context.getConfig('download.autoCleanTemp', true),
+            showInChat: context.getConfig('display.showInChat', true),
+            enableHover: context.getConfig('display.enableHover', true),
+            borderRadius: context.getConfig('display.borderRadius', 8),
+            debugMode: context.getConfig('advanced.debugMode', false),
+            useBackend: context.getConfig('advanced.useBackend', true),
+            customApiEndpoint: context.getConfig('advanced.customApiEndpoint', 'https://api.bilibili.com')
+        }
+
+        context.debug('📋 表情包插件配置:', config)
+
+        // 如果插件被禁用，直接返回
+        if (!config.enabled) {
+            context.debug('⏸️ 表情包插件功能已禁用')
+            return
+        }
+
         // 表情包缓存
         let emojiCache: EmojiInfo[] = []
-
-        // 当前待发送的表情包
 
         /**
          * 扫描本地表情包
@@ -524,13 +679,15 @@ export default definePlugin({
             return name.replace(/[/:*?"<>|]/g, '_')
         }
 
-        // 初始扫描
-        emojiCache = await scanEmojis()
+        // 初始扫描（如果启用自动扫描）
+        if (config.autoScan) {
+            emojiCache = await scanEmojis()
+        }
 
         // ========== 注册工具 ==========
 
         // 1. 搜索本地表情包
-        context.registerTool({
+        const unregisterSearchLocal = context.registerTool({
             name: 'search_local_emoji',
             description: '搜索本地已下载的表情包',
             category: 'emoji',
@@ -563,7 +720,7 @@ export default definePlugin({
         })
 
         // 2. 搜索B站表情包装扮
-        context.registerTool({
+        const unregisterSearchBilibili = context.registerTool({
             name: 'search_bilibili_emoji',
             description: '在B站搜索表情包装扮，可以下载新的表情包',
             category: 'emoji',
@@ -577,12 +734,12 @@ export default definePlugin({
             ],
             examples: ['search_bilibili_emoji("鸽宝")', 'search_bilibili_emoji("清凉豹豹")'],
             handler: async (keyword: string) => {
-                return await searchBilibiliSuits(keyword)
+                return await searchBilibiliSuitsBackend(keyword)
             }
         })
 
         // 3. 下载表情包装扮
-        context.registerTool({
+        const unregisterDownload = context.registerTool({
             name: 'download_emoji_suit',
             description: '下载B站表情包装扮到本地',
             category: 'emoji',
@@ -622,7 +779,7 @@ export default definePlugin({
         })
 
         // 4. 发送表情包
-        context.registerTool({
+        const unregisterSend = context.registerTool({
             name: 'send_emoji',
             description: '在下一条消息中附带表情包',
             category: 'emoji',
@@ -641,7 +798,6 @@ export default definePlugin({
                     throw new Error(`未找到表情包: ${emojiName}`)
                 }
 
-
                 // 触发事件
                 context.emit('emoji:prepared', { emoji })
 
@@ -658,7 +814,7 @@ export default definePlugin({
         })
 
         // 5. 获取随机表情包
-        context.registerTool({
+        const unregisterRandom = context.registerTool({
             name: 'random_emoji',
             description: '获取一个随机表情包',
             category: 'emoji',
@@ -691,7 +847,7 @@ export default definePlugin({
         })
 
         // 6. 列出所有分类
-        context.registerTool({
+        const unregisterCategories = context.registerTool({
             name: 'list_emoji_categories',
             description: '列出所有表情包分类',
             category: 'emoji',
@@ -710,7 +866,7 @@ export default definePlugin({
         })
 
         // 7. 重新扫描表情包
-        context.registerTool({
+        const unregisterRescan = context.registerTool({
             name: 'rescan_emojis',
             description: '重新扫描表情包目录',
             category: 'emoji',
@@ -720,6 +876,14 @@ export default definePlugin({
                 const oldCount = emojiCache.length
                 emojiCache = await scanEmojis()
                 const newCount = emojiCache.length
+                
+                // 更新共享状态
+                context.createSharedState('emoji', {
+                    totalCount: newCount,
+                    categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                    lastScan: Date.now()
+                })
+                
                 return {
                     oldCount,
                     newCount,
@@ -730,11 +894,11 @@ export default definePlugin({
 
         // ========== 注册RPC方法 ==========
 
-        context.registerRPC('searchEmoji', async (query: string, limit?: number) => {
+        const unregisterRPCSearch = context.registerRPC('searchEmoji', async (query: string, limit?: number) => {
             return searchLocalEmojis(query, limit)
         })
 
-        context.registerRPC('getEmojiCache', async () => {
+        const unregisterRPCCache = context.registerRPC('getEmojiCache', async () => {
             return emojiCache
         })
 
@@ -749,14 +913,14 @@ export default definePlugin({
         // ========== Hook聊天组件 ==========
 
         // Hook聊天消息组件
-        context.hookComponent('ChatMessage', {
+        const unregisterChatHook = context.hookComponent('ChatMessage', {
             mounted() {
                 context.debug('ChatMessage组件已挂载')
             }
         })
 
         // 监听表情包准备事件
-        context.on('emoji:prepared', (data: any) => {
+        const unregisterEmojiEvent = context.on('emoji:prepared', (data: any) => {
             context.debug('表情包已准备:', data.emoji.name)
 
             // 通知前端显示表情包
@@ -765,116 +929,123 @@ export default definePlugin({
             })
         })
 
-        // 注入表情包样式
-        if (typeof document !== 'undefined') {
-            const styleElement = document.createElement('style')
-            styleElement.id = 'bilibili-emoji-styles'
-            styleElement.textContent = `
-                .message-emoji {
-                    margin-top: 8px;
-                    display: inline-block;
-                }
-                
-                .emoji-image {
-                    max-width: 200px;
-                    max-height: 200px;
-                    object-fit: contain;
-                    border-radius: 8px;
-                    transition: transform 0.2s;
-                }
-                
-                .emoji-image:hover {
-                    transform: scale(1.05);
-                }
-            `
-
-            const existingStyle = document.getElementById('bilibili-emoji-styles')
-            if (existingStyle) {
-                existingStyle.remove()
+        // 注入表情包样式（根据配置）
+        const cleanupCSS = config.showInChat ? context.injectCSS(`
+            .message-emoji {
+                margin-top: 8px;
+                display: inline-block;
             }
+            
+            .emoji-image {
+                max-width: ${config.maxDisplaySize}px;
+                max-height: ${config.maxDisplaySize}px;
+                object-fit: contain;
+                border-radius: ${config.borderRadius}px;
+                transition: ${config.enableHover ? 'transform 0.2s' : 'none'};
+            }
+            
+            ${config.enableHover ? `
+            .emoji-image:hover {
+                transform: scale(1.05);
+            }
+            ` : ''}
+        `, { id: 'bilibili-emoji-styles' }) : () => {}
 
-            document.head.appendChild(styleElement)
-            context.debug('表情包样式已注入')
-        }
-
-        // ========== 注册设置页面操作按钮 ==========
-
-        let isDownloading = false
-
-        context.registerSettingsAction({
-            label: '下载表情包',
-            icon: 'mdi-download',
+        // 注册设置页面操作按钮
+        const unregisterScanAction = context.registerSettingsAction({
+            label: '扫描表情包',
+            icon: 'mdi-magnify',
             color: 'primary',
-            variant: 'outlined',
-            loading: () => isDownloading,
             handler: async () => {
-                try {
-                    const keyword = prompt('请输入要搜索的表情包关键词（如：鸽宝、清凉豹豹）：')
-                    if (!keyword) return
+                const oldCount = emojiCache.length
+                emojiCache = await scanEmojis()
+                const newCount = emojiCache.length
+                
+                // 更新共享状态
+                context.createSharedState('emoji', {
+                    totalCount: newCount,
+                    categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                    lastScan: Date.now()
+                })
+                
+                alert(`扫描完成！\n\n原有: ${oldCount} 个表情包\n现在: ${newCount} 个表情包\n新增: ${newCount - oldCount} 个表情包`)
+            }
+        })
 
-                    isDownloading = true
+        const unregisterStatsAction = context.registerSettingsAction({
+            label: '查看统计',
+            icon: 'mdi-chart-bar',
+            color: 'info',
+            handler: async () => {
+                const categories = Array.from(new Set(emojiCache.map(e => e.category)))
+                const stats = categories.map(cat => ({
+                    name: cat,
+                    count: emojiCache.filter(e => e.category === cat).length
+                })).sort((a, b) => b.count - a.count)
+                
+                const statsText = stats.map(s => `${s.name}: ${s.count}个`).join('\n')
+                alert(`表情包统计\n\n总计: ${emojiCache.length} 个表情包\n分类: ${categories.length} 个\n\n分类详情:\n${statsText}`)
+            }
+        })
 
-                    const result = await searchBilibiliSuits(keyword)
-
-                    if (!result.suits || result.suits.length === 0) {
-                        alert('未找到相关表情包')
-                        return
+        const unregisterClearAction = context.registerSettingsAction({
+            label: '清理缓存',
+            icon: 'mdi-delete-sweep',
+            color: 'warning',
+            handler: async () => {
+                if (confirm('确定要清理表情包缓存吗？这将删除所有下载的表情包文件。')) {
+                    try {
+                        const appDataDir = await context.getAppDataDir()
+                        const emojiDir = `${appDataDir}/emojis`
+                        
+                        if (await context.fs.exists(emojiDir)) {
+                            await context.invokeTauri('remove_dir_all', { path: emojiDir })
+                            await context.fs.mkdir(emojiDir, { recursive: true })
+                        }
+                        
+                        emojiCache = []
+                        context.createSharedState('emoji', {
+                            totalCount: 0,
+                            categories: [],
+                            lastScan: Date.now()
+                        })
+                        
+                        alert('表情包缓存已清理完成！')
+                    } catch (error) {
+                        alert('清理失败：' + (error instanceof Error ? error.message : String(error)))
                     }
-
-                    // 显示搜索结果
-                    const suitList = result.suits.map((suit: any, index: number) =>
-                        `${index + 1}. ${suit.name} (ID: ${suit.id}, 类型: ${suit.type})`
-                    ).join('\n')
-
-                    const choice = prompt(`找到以下表情包：\n${suitList}\n\n请输入序号下载（1-${result.suits.length}）：`)
-                    if (!choice) return
-
-                    const index = parseInt(choice) - 1
-                    if (index < 0 || index >= result.suits.length) {
-                        alert('无效的选择')
-                        return
-                    }
-
-                    const selectedSuit = result.suits[index]
-
-                    await downloadSuit(selectedSuit.id, selectedSuit.type, selectedSuit.lottery_id)
-
-                    alert(`成功下载表情包：${selectedSuit.name}`)
-                } catch (error: any) {
-                    alert(`下载失败：${error.message || '未知错误'}`)
-                } finally {
-                    isDownloading = false
                 }
             }
         })
 
-        context.debug('设置页面操作已注册')
+        context.debug('🎉 B站表情包插件加载完成')
 
-        // 暴露调试工具到全局
-        if (typeof window !== 'undefined') {
-            (window as any).emojiDebug = emojiDebug
+        // 返回清理函数
+        return () => {
+            context.debug('🧹 B站表情包插件清理中...')
+            
+            // 清理所有注册的功能
+            unregisterSearchLocal()
+            unregisterSearchBilibili()
+            unregisterDownload()
+            unregisterSend()
+            unregisterRandom()
+            unregisterCategories()
+            unregisterRescan()
+            unregisterRPCSearch()
+            unregisterRPCCache()
+            unregisterChatHook()
+            unregisterEmojiEvent()
+            cleanupCSS()
+            unregisterScanAction()
+            unregisterStatsAction()
+            unregisterClearAction()
+            
+            context.debug('✅ B站表情包插件清理完成')
         }
-
-        context.debug('✅ B站表情包插件已就绪')
-        context.debug(`表情包总数: ${emojiCache.length}`)
-        context.debug('💡 在控制台输入 emojiDebug.help() 查看调试命令')
     },
 
     async onUnload(context: PluginContext) {
-        context.debug('B站表情包插件卸载中...')
-
-        // 清理注入的样式
-        if (typeof document !== 'undefined') {
-            const styleElement = document.getElementById('bilibili-emoji-styles')
-            if (styleElement) {
-                styleElement.remove()
-            }
-        }
-
-        // 清理事件监听器
-        context.off('emoji:prepared')
-        context.off('chat:show-emoji')
-
-        context.debug('✅ B站表情包插件已卸载')
+        context.debug('👋 B站表情包插件卸载完成')
     }
 })

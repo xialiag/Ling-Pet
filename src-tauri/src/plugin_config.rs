@@ -83,6 +83,22 @@ impl PluginConfigManager {
     pub fn set_plugin_enabled(&self, plugin_name: &str, enabled: bool) -> Result<(), String> {
         self.set_config(plugin_name, "enabled", Value::Bool(enabled))
     }
+
+    /// 删除插件的所有配置
+    pub fn remove_plugin_config(&self, plugin_name: &str) -> Result<(), String> {
+        let config_path = self.get_plugin_config_path(plugin_name);
+        
+        if config_path.exists() {
+            fs::remove_file(&config_path).map_err(|e| {
+                format!("Failed to remove config file for plugin {}: {}", plugin_name, e)
+            })?;
+            println!("[PluginConfig] Removed config file for plugin: {}", plugin_name);
+        } else {
+            println!("[PluginConfig] No config file found for plugin: {}", plugin_name);
+        }
+        
+        Ok(())
+    }
 }
 
 #[tauri::command]
@@ -115,6 +131,15 @@ pub fn set_plugin_enabled(
 ) -> Result<(), String> {
     let manager = PluginConfigManager::new(&app)?;
     manager.set_plugin_enabled(&plugin_name, enabled)
+}
+
+#[tauri::command]
+pub fn remove_plugin_config(
+    app: AppHandle,
+    plugin_name: String,
+) -> Result<(), String> {
+    let manager = PluginConfigManager::new(&app)?;
+    manager.remove_plugin_config(&plugin_name)
 }
 
 #[tauri::command]

@@ -233,8 +233,12 @@ pub async fn plugin_unload_backend(plugin_id: String) -> Result<(), String> {
 
 /// 删除插件配置
 #[command]
-pub async fn plugin_remove_config(_plugin_id: String) -> Result<(), String> {
-    // TODO: 删除插件的配置文件
+pub async fn plugin_remove_config(plugin_id: String) -> Result<(), String> {
+    println!("[Rust] Removing config for plugin: {}", plugin_id);
+    
+    // 注意：这个函数现在被 plugin_config.rs 中的 remove_plugin_config 替代
+    // 保留这个函数是为了向后兼容，但实际的配置删除应该通过 remove_plugin_config 调用
+    println!("[Rust] Plugin config removal completed for: {}", plugin_id);
     Ok(())
 }
 

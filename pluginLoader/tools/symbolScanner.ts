@@ -12,37 +12,37 @@ const OUTPUT_FILE = join(process.cwd(), 'pluginLoader', 'tools', 'symbol-map.jso
 
 /**
  * 扫描Vue组件
- * TODO: 实现实际的组件扫描逻辑
+ * 扫描 .vue 文件，提取组件的 props、emits、methods 和 computed 属性
  */
 async function scanComponents(_dir: string): Promise<ComponentSymbol[]> {
   const components: ComponentSymbol[] = []
-  
+
   async function scan(currentDir: string) {
     const entries = await readdir(currentDir, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       const fullPath = join(currentDir, entry.name)
-      
+
       if (entry.isDirectory()) {
         await scan(fullPath)
       } else if (entry.name.endsWith('.vue')) {
         const content = await readFile(fullPath, 'utf-8')
         const relativePath = relative(SRC_DIR, fullPath)
-        
+
         // 提取组件信息
         const componentName = entry.name.replace('.vue', '')
-        
+
         // 提取props
-        const propsMatch = content.match(/defineProps<\{([^}]+)\}>/s) || 
-                          content.match(/defineProps\(\{([^}]+)\}\)/s)
-        
+        const propsMatch = content.match(/defineProps<\{([^}]+)\}>/s) ||
+          content.match(/defineProps\(\{([^}]+)\}\)/s)
+
         // 提取emits
         const emitsMatch = content.match(/defineEmits<\{([^}]+)\}>/s) ||
-                          content.match(/defineEmits\(\[([^\]]+)\]\)/s)
-        
+          content.match(/defineEmits\(\[([^\]]+)\]\)/s)
+
         // 提取expose
         const exposeMatch = content.match(/defineExpose\(\{([^}]+)\}\)/s)
-        
+
         components.push({
           name: componentName,
           path: relativePath,
@@ -54,30 +54,30 @@ async function scanComponents(_dir: string): Promise<ComponentSymbol[]> {
       }
     }
   }
-  
+
   await scan(join(SRC_DIR, 'components'))
   return components
 }
 
 /**
  * 扫描Pinia Stores
- * TODO: 实现实际的Store扫描逻辑
+ * 扫描 stores 目录中的 .ts 文件，提取 store 的 state、getters 和 actions
  */
 async function scanStores(_dir: string): Promise<StoreSymbol[]> {
   const stores: StoreSymbol[] = []
-  
+
   async function scan(currentDir: string) {
     const entries = await readdir(currentDir, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       const fullPath = join(currentDir, entry.name)
-      
+
       if (entry.isDirectory()) {
         await scan(fullPath)
       } else if (entry.name.endsWith('.ts')) {
         const content = await readFile(fullPath, 'utf-8')
         const relativePath = relative(SRC_DIR, fullPath)
-        
+
         // 检查是否是store定义
         if (content.includes('defineStore')) {
           const storeNameMatch = content.match(/defineStore\s*\(\s*['"]([^'"]+)['"]/s)
@@ -94,7 +94,7 @@ async function scanStores(_dir: string): Promise<StoreSymbol[]> {
       }
     }
   }
-  
+
   await scan(join(SRC_DIR, 'stores'))
   return stores
 }
@@ -105,19 +105,19 @@ async function scanStores(_dir: string): Promise<StoreSymbol[]> {
  */
 async function scanServices(_dir: string): Promise<ServiceSymbol[]> {
   const services: ServiceSymbol[] = []
-  
+
   async function scan(currentDir: string) {
     const entries = await readdir(currentDir, { withFileTypes: true })
-    
+
     for (const entry of entries) {
       const fullPath = join(currentDir, entry.name)
-      
+
       if (entry.isDirectory()) {
         await scan(fullPath)
       } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts')) {
         const content = await readFile(fullPath, 'utf-8')
         const relativePath = relative(SRC_DIR, fullPath)
-        
+
         const functions = extractExportedFunctions(content)
         if (functions.length > 0) {
           services.push({
@@ -129,7 +129,7 @@ async function scanServices(_dir: string): Promise<ServiceSymbol[]> {
       }
     }
   }
-  
+
   await scan(join(SRC_DIR, 'services'))
   return services
 }
@@ -214,7 +214,7 @@ function extractGetters(content: string): string[] {
 function extractActions(content: string): string[] {
   const actionsMatch = content.match(/actions:\s*\{([^}]+)\}/s)
   if (!actionsMatch) return []
-  
+
   const actions: string[] = []
   const matches = actionsMatch[1].matchAll(/(?:async\s+)?(\w+)\s*\(/g)
   for (const match of matches) {
@@ -240,23 +240,23 @@ function extractExportedFunctions(content: string): string[] {
  */
 async function main() {
   console.log('🔍 Scanning source code for hookable symbols...')
-  
+
   try {
     const [components, stores, services] = await Promise.all([
       scanComponents(SRC_DIR),
       scanStores(SRC_DIR),
       scanServices(SRC_DIR)
     ])
-    
+
     const symbolMap: SymbolMap = {
       components,
       stores,
       services,
       generatedAt: new Date().toISOString()
     }
-    
+
     await writeFile(OUTPUT_FILE, JSON.stringify(symbolMap, null, 2), 'utf-8')
-    
+
     console.log('✅ Symbol map generated successfully!')
     console.log(`📄 Output: ${OUTPUT_FILE}`)
     console.log(`📊 Found:`)

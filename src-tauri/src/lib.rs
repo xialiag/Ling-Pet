@@ -73,6 +73,7 @@ pub fn run() {
             get_plugin_config,
             set_plugin_config,
             set_plugin_enabled,
+            remove_plugin_config,
             open_plugin_folder,
             plugin_check_path,
             plugin_get_platform,

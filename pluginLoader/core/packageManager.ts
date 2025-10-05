@@ -157,7 +157,7 @@ export class PluginPackageManager {
             await remove(plugin.path, { recursive: true })
 
             // 删除插件配置
-            await invoke('plugin_remove_config', { pluginId })
+            await invoke('remove_plugin_config', { pluginName: pluginId })
 
             // 从列表中移除
             this.installedPlugins.delete(pluginId)

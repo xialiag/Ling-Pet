@@ -558,6 +558,46 @@ export class PluginLoader {
   }
 
   /**
+   * 清理插件的存储配置
+   */
+  private async cleanupPluginStorage(pluginId: string): Promise<void> {
+    if (!this.pluginStore) {
+      console.warn('[PluginLoader] Plugin store not available for cleanup')
+      return
+    }
+
+    try {
+      console.log(`[PluginLoader] Cleaning up storage for plugin: ${pluginId}`)
+
+      // 清理权限配置
+      const permissionKey = `plugin_permissions_${pluginId}`
+      await this.pluginStore.delete(permissionKey)
+
+      // 清理插件的所有配置项
+      // 获取所有存储的键
+      const allKeys = await this.pluginStore.keys()
+      const pluginConfigKeys = allKeys.filter((key: string) => key.startsWith(`${pluginId}.`))
+      
+      for (const key of pluginConfigKeys) {
+        await this.pluginStore.delete(key)
+        console.log(`[PluginLoader] Deleted config key: ${key}`)
+      }
+
+      // 从启用插件列表中移除
+      const enabledPlugins = await this.pluginStore.get('enabled_plugins') || []
+      const updatedEnabledPlugins = enabledPlugins.filter((id: string) => id !== pluginId)
+      await this.pluginStore.set('enabled_plugins', updatedEnabledPlugins)
+
+      // 保存更改
+      await this.pluginStore.save()
+
+      console.log(`[PluginLoader] Storage cleanup completed for plugin: ${pluginId}`)
+    } catch (error) {
+      console.error(`[PluginLoader] Failed to cleanup storage for plugin ${pluginId}:`, error)
+    }
+  }
+
+  /**
    * 完全卸载插件（删除文件）
    */
   async removePlugin(pluginId: string): Promise<boolean> {
@@ -565,6 +605,9 @@ export class PluginLoader {
     if (this.loadedPlugins.has(pluginId)) {
       await this.unloadPlugin(pluginId)
     }
+
+    // 清理插件存储的配置数据
+    await this.cleanupPluginStorage(pluginId)
 
     // 删除文件
     const success = await packageManager.uninstallPlugin(pluginId)
