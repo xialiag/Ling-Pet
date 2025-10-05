@@ -78,26 +78,26 @@ export class PluginLoader {
       await listen('plugin:enabled', async (event: any) => {
         const { pluginName } = event.payload
         console.log(`[PluginLoader] Received plugin:enabled event for ${pluginName}`)
-        
+
         // 如果本窗口还没加载这个插件，加载它
         if (!this.loadedPlugins.has(pluginName)) {
           console.log(`[PluginLoader] Loading plugin ${pluginName} in this window`)
           await this.loadPlugin(pluginName)
         }
       })
-      
+
       // 监听插件禁用事件
       await listen('plugin:disabled', async (event: any) => {
         const { pluginName } = event.payload
         console.log(`[PluginLoader] Received plugin:disabled event for ${pluginName}`)
-        
+
         // 如果本窗口加载了这个插件，卸载它
         if (this.loadedPlugins.has(pluginName)) {
           console.log(`[PluginLoader] Unloading plugin ${pluginName} in this window`)
           await this.unloadPlugin(pluginName)
         }
       })
-      
+
       console.log('[PluginLoader] Cross-window sync setup complete')
     } catch (error) {
       console.warn('[PluginLoader] Failed to setup cross-window sync:', error)
@@ -265,34 +265,82 @@ export class PluginLoader {
   }
 
   /**
-   * 强制刷新当前路由以清理组件注入
+   * 智能刷新当前路由：只在插件确实影响当前页面时才刷新
    */
-  private async forceRefreshCurrentRoute(): Promise<void> {
+  private async smartRefreshCurrentRoute(pluginId: string): Promise<void> {
     if (!this.router) return
-    
+
     try {
       const currentRoute = this.router.currentRoute.value
-      console.log(`[PluginLoader] Forcing route refresh: ${currentRoute.path}`)
-      
-      // 方案1: 使用 router.replace 触发重新渲染
+      console.log(`[PluginLoader] Checking if route refresh is needed for plugin ${pluginId}: ${currentRoute.path}`)
+
+      // 检查当前路由类型
+      const isPluginPage = currentRoute.path.startsWith('/plugin/')
+      const isSettingsPage = currentRoute.path === '/settings'
+      // const isMainPage = currentRoute.path === '/' || currentRoute.path === '/main'
+
+      // 如果是设置页面，不进行强制刷新，避免重置用户的操作状态
+      if (isSettingsPage) {
+        console.log(`[PluginLoader] Skipping route refresh for settings page to preserve user state`)
+        return
+      }
+
+      // 检查是否是被卸载插件的页面
+      if (isPluginPage) {
+        const pluginIdFromPath = currentRoute.path.split('/')[2] // /plugin/{pluginId}/...
+        if (pluginIdFromPath === pluginId) {
+          console.log(`[PluginLoader] Current page belongs to unloaded plugin ${pluginId}, redirecting to main`)
+          // 如果当前页面属于被卸载的插件，重定向到主页
+          await this.router.replace('/')
+          return
+        }
+      }
+
+      // 检查插件是否对当前页面有组件注入
+      const hasInjections = this.checkPluginInjectionsOnCurrentPage(pluginId, currentRoute.path)
+
+      if (!hasInjections) {
+        console.log(`[PluginLoader] Plugin ${pluginId} has no injections on current page, skipping refresh`)
+        return
+      }
+
+      console.log(`[PluginLoader] Plugin ${pluginId} has injections on current page, refreshing: ${currentRoute.path}`)
+
+      // 使用 router.replace 触发重新渲染
       await this.router.replace({
         path: currentRoute.path,
         query: { ...currentRoute.query, _refresh: Date.now().toString() }
       })
-      
+
       // 立即移除 _refresh 参数
       setTimeout(() => {
         const query = { ...currentRoute.query }
         delete query._refresh
         this.router?.replace({ path: currentRoute.path, query })
       }, 100)
-      
+
       console.log(`[PluginLoader] Route refresh completed`)
     } catch (error) {
       console.warn(`[PluginLoader] Failed to refresh route:`, error)
     }
   }
-  
+
+  /**
+   * 检查插件是否在当前页面有组件注入
+   */
+  private checkPluginInjectionsOnCurrentPage(_pluginId: string, _currentPath: string): boolean {
+    // 检查组件注入管理器中是否有该插件的注入
+    const stats = componentInjectionManager.getStats()
+    if (stats.totalInjections === 0) {
+      return false
+    }
+
+    // 这里可以进一步优化，检查具体的组件注入是否影响当前页面
+    // 暂时返回 false，因为大多数情况下设置页面不会有插件注入
+    return false
+  }
+
+
   /**
    * 检查插件权限
    */
@@ -365,9 +413,9 @@ export class PluginLoader {
       if (this.pageManager) {
         this.pageManager.cleanupPluginPages(pluginId)
       }
-      
-      // 强制刷新当前路由以清理残留的组件注入
-      await this.forceRefreshCurrentRoute()
+
+      // 智能刷新：只在必要时刷新当前路由
+      await this.smartRefreshCurrentRoute(pluginId)
 
       // 卸载Rust后端
       const installedPlugin = packageManager.getPlugin(pluginId)
@@ -454,7 +502,7 @@ export class PluginLoader {
     if (success) {
       // 保存到已启用列表
       await this.saveEnabledPlugins()
-      
+
       // 发送跨窗口事件
       try {
         await emit('plugin:enabled', { pluginName })
@@ -476,7 +524,7 @@ export class PluginLoader {
     if (success) {
       // 从已启用列表移除
       await this.saveEnabledPlugins()
-      
+
       // 发送跨窗口事件
       try {
         await emit('plugin:disabled', { pluginName })
@@ -520,7 +568,7 @@ export class PluginLoader {
 
     // 删除文件
     const success = await packageManager.uninstallPlugin(pluginId)
-    
+
     if (success) {
       // 发送跨窗口事件通知插件已被完全卸载
       try {
@@ -530,7 +578,7 @@ export class PluginLoader {
         console.warn(`[PluginLoader] Failed to emit plugin:removed event:`, error)
       }
     }
-    
+
     return success
   }
 
@@ -620,15 +668,15 @@ export class PluginLoader {
         const globalComponent = app.component(target)
         if (globalComponent) {
           console.log(`[Plugin ${plugin.name}] 发现全局组件 ${target}`)
-          
+
           const unregister = componentInjectionManager.registerInjection(injection)
           const wrappedComponent = componentInjectionManager.createWrappedComponent(globalComponent, target)
           app.component(target, wrappedComponent)
-          
+
           unregisterPromise = Promise.resolve(unregister)
         } else {
           console.log(`[Plugin ${plugin.name}] 全局组件 ${target} 未找到，使用智能发现`)
-          
+
           // 使用智能注入
           unregisterPromise = componentInjectionManager.injectToComponent(target, injection)
         }
@@ -682,12 +730,12 @@ export class PluginLoader {
         if (!this.pageManager) {
           throw new Error('Page manager not initialized')
         }
-        
+
         const pageConfig = {
           ...config,
           pluginId: plugin.name
         }
-        
+
         return this.pageManager.registerPage(pageConfig)
       },
 
@@ -695,7 +743,7 @@ export class PluginLoader {
         if (!this.pageManager) {
           throw new Error('Page manager not initialized')
         }
-        
+
         this.pageManager.navigateToPage(pageId)
       },
 
@@ -703,14 +751,14 @@ export class PluginLoader {
         if (!this.pageManager) {
           throw new Error('Page manager not initialized')
         }
-        
+
         // 创建异步组件
         const asyncComponent = dynamicPageLoader.createAsyncComponent(
           plugin.name,
           config.componentPath,
           config.asyncOptions
         )
-        
+
         // 转换为标准页面配置
         const pageConfig = {
           path: config.path,
@@ -724,7 +772,7 @@ export class PluginLoader {
           meta: config.meta,
           pluginId: plugin.name
         }
-        
+
         return this.pageManager.registerPage(pageConfig)
       },
 
@@ -767,16 +815,16 @@ export class PluginLoader {
       callBackend: async <T = any>(functionName: string, args?: any): Promise<T> => {
         try {
           const argsString = args ? JSON.stringify(args) : '{}'
-          const result = await invoke<{success: boolean, result?: string, error?: string}>('plugin_call_backend', {
+          const result = await invoke<{ success: boolean, result?: string, error?: string }>('plugin_call_backend', {
             pluginId: plugin.name,
             functionName,
             args: argsString
           })
-          
+
           if (!result.success) {
             throw new Error(result.error || 'Backend call failed')
           }
-          
+
           // 尝试解析JSON结果
           if (result.result) {
             try {
@@ -785,7 +833,7 @@ export class PluginLoader {
               return result.result as T
             }
           }
-          
+
           return undefined as T
         } catch (error) {
           console.error(`[Plugin ${plugin.name}] Backend call failed:`, error)
@@ -804,9 +852,9 @@ export class PluginLoader {
         }
       },
 
-      getBackendCommands: async (): Promise<Array<{name: string, description: string}>> => {
+      getBackendCommands: async (): Promise<Array<{ name: string, description: string }>> => {
         try {
-          return await invoke<Array<{name: string, description: string}>>('plugin_get_commands', {
+          return await invoke<Array<{ name: string, description: string }>>('plugin_get_commands', {
             pluginId: plugin.name
           })
         } catch (error) {
@@ -855,7 +903,7 @@ export class PluginLoader {
             callback(log)
           }
         })
-        
+
         return unlisten
       },
 

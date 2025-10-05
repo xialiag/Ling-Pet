@@ -189,15 +189,40 @@ export class PluginPackageManager {
             console.log(`[PackageManager] Backend entry: ${plugin.manifest.backend.entry}`)
 
             // 获取动态库路径
-            const backendPath = await join(plugin.path, plugin.manifest.backend.entry)
+            let backendPath = await join(plugin.path, plugin.manifest.backend.entry)
             console.log(`[PackageManager] Full backend path: ${backendPath}`)
 
             // 检查文件是否存在
-            const fileExists = await exists(backendPath)
+            let fileExists = await exists(backendPath)
             console.log(`[PackageManager] Backend file exists: ${fileExists}`)
 
             if (!fileExists) {
-                throw new Error(`Backend file not found: ${backendPath}`)
+                console.log(`[PackageManager] Backend file not found at expected path, searching for alternatives...`)
+                
+                // 尝试多个可能的路径
+                const possiblePaths = [
+                    // 简化路径（去掉 target/release）
+                    await join(plugin.path, 'backend', 'plugin.dll'),
+                    // 在插件根目录下
+                    await join(plugin.path, 'plugin.dll'),
+                    // 尝试其他常见的文件名
+                    await join(plugin.path, 'backend', `${pluginId}.dll`),
+                    await join(plugin.path, `${pluginId}.dll`)
+                ]
+                
+                for (const possiblePath of possiblePaths) {
+                    console.log(`[PackageManager] Trying path: ${possiblePath}`)
+                    if (await exists(possiblePath)) {
+                        backendPath = possiblePath
+                        fileExists = true
+                        console.log(`[PackageManager] Found backend file at: ${possiblePath}`)
+                        break
+                    }
+                }
+                
+                if (!fileExists) {
+                    throw new Error(`Backend file not found. Tried paths: ${[backendPath, ...possiblePaths].join(', ')}`)
+                }
             }
 
             // 调用Rust后端加载动态库
