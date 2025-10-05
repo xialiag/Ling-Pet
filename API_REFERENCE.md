@@ -1,53 +1,653 @@
-# 插件系统API参考
+# 插件系统API详细参考
 
-## 📋 PluginContext API
+> 本文档提供插件系统所有API的详细参考。如需快速开始，请查看 [插件系统完整指南](PLUGIN_SYSTEM_COMPLETE_GUIDE.md)。
 
-### 基础API
+## 📋 目录
 
-#### debug(...args: any[])
-输出调试日志
+- [PluginContext 核心API](#plugincontext-核心api)
+- [类型定义](#类型定义)
+- [Hook系统](#hook系统)
+- [后端集成API](#后端集成api)
+- [错误处理](#错误处理)
+
+---
+
+## 🔧 PluginContext 核心API
+
+### 基础功能
+
+#### debug(...args: any[]): void
+输出调试日志，会在浏览器控制台显示
 ```typescript
-context.debug('插件加载', { status: 'success' })
+context.debug('插件加载', { status: 'success', timestamp: Date.now() })
+context.debug('用户操作:', action, data)
 ```
 
 #### getConfig<T>(key: string, defaultValue?: T): T
-获取插件配置
+获取插件配置值，支持类型推断
 ```typescript
 const apiKey = context.getConfig('apiKey', '')
-const maxRetries = context.getConfig('maxRetries', 3)
+const maxRetries = context.getConfig<number>('maxRetries', 3)
+const settings = context.getConfig<UserSettings>('settings', defaultSettings)
 ```
 
 #### setConfig(key: string, value: any): Promise<void>
-保存插件配置
+保存插件配置，自动持久化
 ```typescript
 await context.setConfig('lastUpdate', Date.now())
+await context.setConfig('userPreferences', { theme: 'dark', lang: 'zh' })
 ```
 
 #### invokeTauri<T>(command: string, args?: Record<string, any>): Promise<T>
-调用Tauri命令
+调用Tauri后端命令
 ```typescript
-const result = await context.invokeTauri('get_system_info')
+const systemInfo = await context.invokeTauri<SystemInfo>('get_system_info')
+const result = await context.invokeTauri('custom_command', { param: 'value' })
 ```
 
-### Vue组件注入API
+### Vue集成API
 
 #### injectComponent(target: string, component: Component, options?: InjectOptions): UnhookFunction
 向Vue组件注入内容
 ```typescript
 const cleanup = context.injectComponent('Live2DAvatar', MyComponent, {
     position: 'before',  // 'before' | 'after' | 'replace'
-    props: { message: 'Hello' },
-    order: 1
+    props: { message: 'Hello', user: currentUser },
+    order: 1,
+    condition: () => isFeatureEnabled
+})
+
+// 清理注入
+cleanup()
+```
+
+#### hookComponent(componentName: string, hooks: ComponentHooks): UnhookFunction
+Hook Vue组件生命周期
+```typescript
+const unhook = context.hookComponent('ChatWindow', {
+    mounted(instance) {
+        console.log('聊天窗口已挂载', instance)
+    },
+    beforeUnmount(instance) {
+        console.log('聊天窗口即将卸载')
+    }
 })
 ```
 
-**InjectOptions**:
+#### hookStore(storeName: string, hooks: StoreHooks): UnhookFunction
+Hook Pinia Store
+```typescript
+const unhook = context.hookStore('chatStore', {
+    beforeAction(name, args) {
+        console.log(`即将执行 ${name}`, args)
+        // 返回 false 可阻止执行
+    },
+    afterAction(name, args, result) {
+        console.log(`${name} 执行完成`, result)
+    },
+    onStateChange(state, oldState) {
+        console.log('状态变化', { old: oldState, new: state })
+    }
+})
+```
+
+#### hookService(servicePath: string, functionName: string, hooks: ServiceHooks): UnhookFunction
+Hook服务函数
+```typescript
+const unhook = context.hookService('userService', 'login', {
+    before(...args) {
+        console.log('登录前处理', args)
+        // 可以修改参数
+        return [...args, { timestamp: Date.now() }]
+    },
+    after(result, ...args) {
+        console.log('登录后处理', result)
+        // 可以修改返回值
+        return { ...result, enhanced: true }
+    },
+    onError(error, ...args) {
+        console.error('登录失败', error, args)
+    }
+})
+```
+
+### DOM操作API
+
+#### injectHTML(selector: string, html: string, options?: DOMInjectionOptions): () => void
+注入HTML内容到指定选择器
+```typescript
+const cleanup = context.injectHTML('.main-content', `
+    <div class="plugin-banner">
+        <h3>插件通知</h3>
+        <p>这是来自插件的消息</p>
+    </div>
+`, {
+    position: 'prepend',
+    className: 'my-plugin-injection',
+    style: { 
+        background: '#f0f0f0',
+        padding: '10px',
+        borderRadius: '5px'
+    }
+})
+```
+
+#### injectCSS(css: string, options?: { id?: string }): () => void
+注入CSS样式
+```typescript
+const cleanup = context.injectCSS(`
+    .my-plugin-style {
+        background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        animation: fadeIn 0.3s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+`, { id: 'my-plugin-styles' })
+```
+
+#### injectVueComponent(selector: string, component: Component, props?: Record<string, any>, options?: DOMInjectionOptions): Promise<() => void>
+注入Vue组件到DOM
+```typescript
+const cleanup = await context.injectVueComponent(
+    '.sidebar',
+    MyVueComponent,
+    { 
+        title: '插件组件',
+        data: componentData,
+        onAction: handleAction
+    },
+    { 
+        position: 'append',
+        className: 'plugin-vue-component'
+    }
+)
+```
+
+#### querySelector(selector: string): Element | null
+查询DOM元素
+```typescript
+const element = context.querySelector('.target-element')
+if (element) {
+    element.classList.add('plugin-modified')
+}
+```
+
+#### waitForElement(selector: string, timeout?: number): Promise<Element>
+等待元素出现
+```typescript
+try {
+    const element = await context.waitForElement('.dynamic-content', 5000)
+    console.log('元素已出现:', element)
+} catch (error) {
+    console.log('元素未在5秒内出现')
+}
+```
+
+### 工具系统API
+
+#### registerTool(tool: ToolRegistration): UnhookFunction
+注册LLM工具
+```typescript
+const unregister = context.registerTool({
+    name: 'calculate_sum',
+    description: '计算数字列表的总和',
+    parameters: [
+        {
+            name: 'numbers',
+            type: 'array',
+            description: '要计算的数字列表',
+            required: true,
+            items: {
+                name: 'number',
+                type: 'number',
+                description: '数字'
+            }
+        }
+    ],
+    handler: async (args) => {
+        const sum = args.numbers.reduce((a, b) => a + b, 0)
+        return {
+            sum,
+            count: args.numbers.length,
+            average: sum / args.numbers.length
+        }
+    },
+    category: 'math',
+    examples: [
+        'calculate_sum({"numbers": [1, 2, 3, 4, 5]})',
+        'calculate_sum({"numbers": [10, 20, 30]})'
+    ]
+})
+```
+
+#### callTool<T>(name: string, args: Record<string, any>): Promise<ToolCallResult<T>>
+调用工具
+```typescript
+const result = await context.callTool('calculate_sum', {
+    numbers: [1, 2, 3, 4, 5]
+})
+
+if (result.success) {
+    console.log('计算结果:', result.result)
+} else {
+    console.error('计算失败:', result.error)
+}
+```
+
+### 插件通信API
+
+#### on(event: string, handler: Function): UnhookFunction
+订阅事件
+```typescript
+const unsubscribe = context.on('user-action', (data) => {
+    console.log('收到用户操作事件:', data)
+})
+
+const unsubscribe2 = context.on('plugin-message', (message) => {
+    if (message.type === 'notification') {
+        showNotification(message.content)
+    }
+})
+```
+
+#### emit(event: string, ...args: any[]): void
+发送事件
+```typescript
+context.emit('user-action', {
+    action: 'click',
+    target: 'button',
+    timestamp: Date.now()
+})
+
+context.emit('plugin-message', {
+    type: 'notification',
+    content: '操作完成',
+    level: 'success'
+})
+```
+
+#### registerRPC(method: string, handler: Function): UnhookFunction
+注册RPC方法
+```typescript
+const unregister = context.registerRPC('getUserData', async (userId) => {
+    const userData = await fetchUserData(userId)
+    return {
+        success: true,
+        data: userData,
+        timestamp: Date.now()
+    }
+})
+```
+
+#### callRPC<T>(pluginId: string, method: string, ...params: any[]): Promise<T>
+调用其他插件的RPC方法
+```typescript
+try {
+    const result = await context.callRPC<UserData>(
+        'user-manager-plugin',
+        'getUserData',
+        'user123'
+    )
+    console.log('用户数据:', result)
+} catch (error) {
+    console.error('RPC调用失败:', error)
+}
+```
+
+### 后端集成API
+
+#### callBackend<T>(functionName: string, args?: any): Promise<T>
+调用插件后端函数
+```typescript
+const result = await context.callBackend<ProcessResult>('process_data', {
+    input: 'hello world',
+    operation: 'uppercase'
+})
+
+console.log('后端处理结果:', result)
+```
+
+#### getBackendStatus(): Promise<boolean>
+获取后端状态
+```typescript
+const isReady = await context.getBackendStatus()
+if (!isReady) {
+    console.warn('后端未就绪')
+    return
+}
+```
+
+#### getBackendMetrics(): Promise<BackendMetrics>
+获取后端性能指标（新增）
+```typescript
+const metrics = await context.getBackendMetrics()
+console.log('后端指标:', {
+    uptime: metrics.uptime,
+    functionCalls: metrics.function_calls,
+    memoryUsage: metrics.memory_usage,
+    status: metrics.status
+})
+```
+
+#### checkBackendHealth(): Promise<boolean>
+检查后端健康状态（新增）
+```typescript
+const isHealthy = await context.checkBackendHealth()
+if (!isHealthy) {
+    console.warn('后端健康检查失败')
+    // 可以尝试重启后端
+    await context.restartBackend()
+}
+```
+
+#### restartBackend(): Promise<boolean>
+重启后端（热重载）（新增）
+```typescript
+try {
+    const success = await context.restartBackend()
+    if (success) {
+        console.log('后端热重载成功')
+    }
+} catch (error) {
+    console.error('后端重启失败:', error)
+}
+```
+
+#### subscribeBackendLogs(callback: (log: PluginLogEntry) => void): UnhookFunction
+订阅后端日志（新增）
+```typescript
+const unsubscribe = context.subscribeBackendLogs((log) => {
+    console.log(`[${log.level.toUpperCase()}] ${log.message}`)
+    
+    if (log.level === 'error') {
+        showErrorNotification(log.message)
+    }
+})
+```
+
+### 页面系统API
+
+#### registerPage(config: PluginPageConfig): UnhookFunction
+注册插件页面
+```typescript
+const unregister = context.registerPage({
+    path: '/my-plugin/dashboard',
+    name: 'plugin-dashboard',
+    component: DashboardComponent,
+    title: '插件仪表板',
+    icon: 'mdi-view-dashboard',
+    description: '查看插件统计和设置',
+    showInNavigation: true,
+    navigationGroup: '插件管理',
+    container: {
+        useDefault: true,
+        showHeader: true,
+        showMenu: true,
+        showBackButton: false
+    },
+    meta: {
+        requiresAuth: false,
+        category: 'management'
+    }
+})
+```
+
+#### navigateToPage(pageId: string): void
+导航到插件页面
+```typescript
+context.navigateToPage('plugin-dashboard')
+```
+
+### 文件系统API
+
+#### getAppDataDir(): Promise<string>
+获取应用数据目录
+```typescript
+const appDataDir = await context.getAppDataDir()
+const pluginDataDir = `${appDataDir}/my-plugin-data`
+```
+
+#### fs.readDir(path: string): Promise<Array<{name: string, isFile: boolean, isDirectory: boolean}>>
+读取目录内容
+```typescript
+const entries = await context.fs.readDir('/path/to/directory')
+const files = entries.filter(entry => entry.isFile)
+const dirs = entries.filter(entry => entry.isDirectory)
+```
+
+#### fs.readFile(path: string): Promise<string>
+读取文件内容
+```typescript
+const content = await context.fs.readFile('/path/to/file.txt')
+const config = JSON.parse(await context.fs.readFile('/path/to/config.json'))
+```
+
+#### fs.writeFile(path: string, content: string | Uint8Array): Promise<void>
+写入文件
+```typescript
+await context.fs.writeFile('/path/to/file.txt', 'Hello World')
+await context.fs.writeFile('/path/to/config.json', JSON.stringify(config, null, 2))
+
+// 写入二进制数据
+const imageData = new Uint8Array([...])
+await context.fs.writeFile('/path/to/image.png', imageData)
+```
+
+---
+
+## 📝 类型定义
+
+### PluginLogEntry
+```typescript
+interface PluginLogEntry {
+    plugin_id: string      // 插件ID
+    level: string          // 日志级别: debug, info, warn, error
+    message: string        // 日志消息
+    timestamp: number      // 时间戳
+    source: string         // 来源: frontend, backend, system
+}
+```
+
+### BackendMetrics
+```typescript
+interface BackendMetrics {
+    plugin_id: string                    // 插件ID
+    memory_usage: number                 // 内存使用量（字节）
+    cpu_time: number                     // CPU时间（毫秒）
+    function_calls: Record<string, number> // 函数调用统计
+    last_error?: string                  // 最后错误信息
+    uptime: number                       // 运行时间（秒）
+    status: string                       // 状态: running, stopped, error
+}
+```
+
+### ToolRegistration
+```typescript
+interface ToolRegistration {
+    name: string                    // 工具名称
+    description: string             // 工具描述
+    parameters: ToolParameter[]     // 参数定义
+    handler: (...args: any[]) => Promise<any> | any  // 处理函数
+    category?: string               // 分类
+    examples?: string[]             // 使用示例
+}
+```
+
+### ComponentHooks
+```typescript
+interface ComponentHooks {
+    beforeMount?: (instance: ComponentPublicInstance) => void
+    mounted?: (instance: ComponentPublicInstance) => void
+    beforeUpdate?: (instance: ComponentPublicInstance) => void
+    updated?: (instance: ComponentPublicInstance) => void
+    beforeUnmount?: (instance: ComponentPublicInstance) => void
+    unmounted?: (instance: ComponentPublicInstance) => void
+}
+```
+
+### StoreHooks
+```typescript
+interface StoreHooks {
+    beforeAction?: (name: string, args: any[]) => void | false
+    afterAction?: (name: string, args: any[], result: any) => void
+    onStateChange?: (state: any, oldState: any) => void
+}
+```
+
+### ServiceHooks
+```typescript
+interface ServiceHooks {
+    before?: (...args: any[]) => any[] | void
+    after?: (result: any, ...args: any[]) => any
+    replace?: (...args: any[]) => any
+    onError?: (error: Error, ...args: any[]) => void
+}
+```
+
+### InjectOptions
 ```typescript
 interface InjectOptions {
     position?: 'before' | 'after' | 'replace'
     props?: Record<string, any>
     condition?: () => boolean
     order?: number
+}
+```
+
+### DOMInjectionOptions
+```typescript
+interface DOMInjectionOptions {
+    position?: 'before' | 'after' | 'prepend' | 'append' | 'replace'
+    className?: string
+    style?: Record<string, string> | string
+    attributes?: Record<string, string>
+    condition?: () => boolean
+    order?: number
+    autoRemove?: boolean
+}
+```
+
+---
+
+## 🔧 Hook系统详解
+
+### 组件Hook执行顺序
+1. `beforeMount` - 组件挂载前
+2. `mounted` - 组件挂载后
+3. `beforeUpdate` - 组件更新前
+4. `updated` - 组件更新后
+5. `beforeUnmount` - 组件卸载前
+6. `unmounted` - 组件卸载后
+
+### Store Hook执行顺序
+1. `beforeAction` - Action执行前（可阻止执行）
+2. Action执行
+3. `afterAction` - Action执行后
+4. `onStateChange` - 状态变化时
+
+### 服务Hook执行顺序
+1. `before` - 函数执行前（可修改参数）
+2. 原函数执行（除非被`replace`替换）
+3. `after` - 函数执行后（可修改返回值）
+4. `onError` - 发生错误时
+
+---
+
+## 🔌 后端集成API详解
+
+### 后端函数命名规范
+- 导出函数必须以 `plugin_` 开头
+- 例如：`plugin_process_data`、`plugin_get_status`
+
+### 标准后端函数
+```rust
+// 必需的生命周期函数
+#[no_mangle]
+pub extern "C" fn plugin_init() { }
+
+#[no_mangle]
+pub extern "C" fn plugin_cleanup() { }
+
+#[no_mangle]
+pub extern "C" fn plugin_health_check() -> bool { true }
+
+// 可选的状态管理函数（支持热重载）
+#[no_mangle]
+pub extern "C" fn plugin_save_state() -> *mut i8 { }
+
+#[no_mangle]
+pub extern "C" fn plugin_restore_state(state_ptr: *const i8) -> bool { }
+
+// 内存管理函数
+#[no_mangle]
+pub extern "C" fn plugin_free_string(ptr: *mut i8) { }
+```
+
+### 后端错误处理
+```rust
+#[derive(Serialize)]
+pub struct StandardResult<T> {
+    pub success: bool,
+    pub data: Option<T>,
+    pub error: Option<String>,
+}
+
+impl<T> StandardResult<T> {
+    pub fn success(data: T) -> Self {
+        Self { success: true, data: Some(data), error: None }
+    }
+    
+    pub fn error(message: &str) -> Self {
+        Self { success: false, data: None, error: Some(message.to_string()) }
+    }
+}
+```
+
+---
+
+## ⚠️ 错误处理
+
+### 常见错误类型
+- `PluginNotFound` - 插件未找到
+- `BackendNotReady` - 后端未就绪
+- `PermissionDenied` - 权限不足
+- `InvalidArguments` - 参数无效
+- `FunctionNotFound` - 函数未找到
+
+### 错误处理最佳实践
+```typescript
+// 1. 使用try-catch包装异步操作
+try {
+    const result = await context.callBackend('risky_function', args)
+    return result
+} catch (error) {
+    context.debug('操作失败:', error)
+    // 提供降级方案
+    return fallbackResult
+}
+
+// 2. 检查前置条件
+const isReady = await context.getBackendStatus()
+if (!isReady) {
+    throw new Error('后端未就绪，无法执行操作')
+}
+
+// 3. 验证参数
+if (!args.required_param) {
+    throw new Error('缺少必需参数: required_param')
+}
+```
+
+---
+
+*本文档与 [插件系统完整指南](PLUGIN_SYSTEM_COMPLETE_GUIDE.md) 配套使用*
+*最后更新：2024年12月*
 }
 ```
 
