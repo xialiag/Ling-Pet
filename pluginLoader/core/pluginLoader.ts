@@ -692,6 +692,57 @@ export class PluginLoader {
         return invoke<T>(command, args)
       },
 
+      callBackend: async <T = any>(functionName: string, args?: any): Promise<T> => {
+        try {
+          const argsString = args ? JSON.stringify(args) : '{}'
+          const result = await invoke<{success: boolean, result?: string, error?: string}>('plugin_call_backend', {
+            pluginId: plugin.name,
+            functionName,
+            args: argsString
+          })
+          
+          if (!result.success) {
+            throw new Error(result.error || 'Backend call failed')
+          }
+          
+          // 尝试解析JSON结果
+          if (result.result) {
+            try {
+              return JSON.parse(result.result) as T
+            } catch {
+              return result.result as T
+            }
+          }
+          
+          return undefined as T
+        } catch (error) {
+          console.error(`[Plugin ${plugin.name}] Backend call failed:`, error)
+          throw error
+        }
+      },
+
+      getBackendStatus: async (): Promise<boolean> => {
+        try {
+          return await invoke<boolean>('plugin_backend_status', {
+            pluginId: plugin.name
+          })
+        } catch (error) {
+          console.warn(`[Plugin ${plugin.name}] Failed to get backend status:`, error)
+          return false
+        }
+      },
+
+      getBackendCommands: async (): Promise<Array<{name: string, description: string}>> => {
+        try {
+          return await invoke<Array<{name: string, description: string}>>('plugin_get_commands', {
+            pluginId: plugin.name
+          })
+        } catch (error) {
+          console.warn(`[Plugin ${plugin.name}] Failed to get backend commands:`, error)
+          return []
+        }
+      },
+
       fetch: async (url: string, options?: RequestInit): Promise<Response> => {
         const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
         return tauriFetch(url, options)

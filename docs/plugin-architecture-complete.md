@@ -433,12 +433,49 @@ export default definePlugin({
       examples: ['my_tool({"input": "hello world"})']
     })
     
-    // 6. 调用后端
+    // 6. 后端交互示例
     if (context.getConfig('enableBackend')) {
-      const result = await context.invokeTauri('my_plugin_command', {
-        param: 'value'
-      })
-      context.debug('后端返回:', result)
+      try {
+        // HTTP请求（避免CORS限制）
+        const apiResponse = await context.invokeTauri<string>('http_request', {
+          url: 'https://api.example.com/search',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'MyPlugin/1.0'
+          },
+          body: JSON.stringify({ query: 'test' })
+        })
+        
+        const data = JSON.parse(apiResponse)
+        context.debug('API响应:', data)
+        
+        // 文件操作示例
+        const appDataDir = await context.getAppDataDir()
+        const cacheDir = `${appDataDir}/my-plugin-cache`
+        
+        // 确保缓存目录存在
+        await context.fs.mkdir(cacheDir, { recursive: true })
+        
+        // 保存数据到缓存
+        const cacheFile = `${cacheDir}/api-cache.json`
+        await context.fs.writeFile(cacheFile, JSON.stringify(data))
+        
+        // 读取二进制文件（如图片）
+        if (data.imageUrl) {
+          const imageResponse = await context.invokeTauri<string>('http_request', {
+            url: data.imageUrl,
+            method: 'GET'
+          })
+          
+          // 保存图片
+          const imagePath = `${cacheDir}/image.png`
+          await context.fs.writeFile(imagePath, imageResponse)
+        }
+        
+      } catch (error) {
+        context.debug('后端调用失败:', error)
+      }
     }
   },
   
@@ -447,6 +484,64 @@ export default definePlugin({
     // Hook会自动清理
   }
 })
+```
+
+### 实际插件后端交互案例
+
+以下是 `bilibili-emoji` 插件的实际后端交互示例：
+
+```typescript
+// 搜索B站装扮
+const searchSuits = async (keyword: string) => {
+  try {
+    const url = `https://api.bilibili.com/x/garb/v2/mall/home/search?key_word=${encodeURIComponent(keyword)}`
+    
+    // 通过主应用HTTP命令发送请求（避免CORS）
+    const responseText = await context.invokeTauri<string>('http_request', {
+      url,
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://www.bilibili.com/'
+      }
+    })
+    
+    const response = JSON.parse(responseText)
+    return response.data?.list || []
+  } catch (error) {
+    context.debug('搜索失败:', error)
+    return []
+  }
+}
+
+// 下载表情包文件
+const downloadEmoji = async (url: string, savePath: string) => {
+  try {
+    // 下载文件内容
+    const content = await context.invokeTauri<number[]>('read_binary_file', {
+      path: url // 这里实际上是通过HTTP下载
+    })
+    
+    // 保存到本地
+    const uint8Array = new Uint8Array(content)
+    await context.fs.writeFile(savePath, uint8Array)
+    
+    return true
+  } catch (error) {
+    context.debug('下载失败:', error)
+    return false
+  }
+}
+
+// 清理临时文件
+const cleanupTemp = async (tempDir: string) => {
+  try {
+    await context.invokeTauri('remove_dir_all', { path: tempDir })
+    context.debug('临时目录已清理')
+  } catch (error) {
+    context.debug('清理失败:', error)
+  }
+}
 ```
 
 ## 🔒 安全机制
@@ -517,26 +612,40 @@ export default definePlugin({
 1. **插件后端代码（Rust）**
 ```rust
 // backend/src/lib.rs
-use tauri::{command, Runtime};
+use serde::{Deserialize, Serialize};
 
-#[command]
-pub fn my_plugin_command<R: Runtime>(param: String) -> Result<String, String> {
-    Ok(format!("处理结果: {}", param))
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProcessResult {
+    pub success: bool,
+    pub data: String,
+    pub error: Option<String>,
 }
 
-// 导出初始化函数
+// 插件初始化函数
 #[no_mangle]
-pub extern "C" fn plugin_init(app: tauri::AppHandle) {
-    // 注册命令
-    app.plugin(tauri::plugin::Builder::new("my-plugin")
-        .invoke_handler(tauri::generate_handler![my_plugin_command])
-        .build());
+pub extern "C" fn plugin_init() {
+    println!("[Plugin] Backend initialized");
+}
+
+// 插件清理函数
+#[no_mangle]
+pub extern "C" fn plugin_cleanup() {
+    println!("[Plugin] Backend cleaned up");
+}
+
+// 插件业务逻辑函数
+pub fn process_data(input: &str) -> ProcessResult {
+    ProcessResult {
+        success: true,
+        data: format!("Processed: {}", input),
+        error: None,
+    }
 }
 ```
 
 2. **主应用加载动态库（Rust）**
 ```rust
-// src-tauri/src/plugin_loader.rs
+// src-tauri/src/plugin_manager.rs
 use libloading::{Library, Symbol};
 
 pub struct PluginBackend {
@@ -545,17 +654,15 @@ pub struct PluginBackend {
 }
 
 impl PluginBackend {
-    pub fn load(path: &str, app: tauri::AppHandle) -> Result<Self, String> {
+    pub fn load(path: &str) -> Result<Self, String> {
         unsafe {
             let lib = Library::new(path)
                 .map_err(|e| format!("加载失败: {}", e))?;
             
             // 调用初始化函数
-            let init: Symbol<extern "C" fn(tauri::AppHandle)> = lib
-                .get(b"plugin_init")
-                .map_err(|e| format!("找不到初始化函数: {}", e))?;
-            
-            init(app);
+            if let Ok(init_fn) = lib.get::<extern "C" fn()>(b"plugin_init") {
+                init_fn();
+            }
             
             Ok(PluginBackend {
                 library: lib,
@@ -566,20 +673,66 @@ impl PluginBackend {
 }
 ```
 
+### 主应用提供的通用后端命令
+
+插件通过以下通用命令与后端交互：
+
+#### HTTP请求命令
+```typescript
+// 发送HTTP请求（避免CORS限制）
+const response = await context.invokeTauri<string>('http_request', {
+    url: 'https://api.example.com/data',
+    method: 'GET', // GET, POST, PUT, DELETE
+    headers: {
+        'User-Agent': 'MyApp/1.0',
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ key: 'value' }) // 可选
+})
+```
+
+#### 文件系统命令
+```typescript
+// 读取二进制文件
+const bytes = await context.invokeTauri<number[]>('read_binary_file', {
+    path: '/path/to/image.png'
+})
+
+// 递归删除目录
+await context.invokeTauri('remove_dir_all', {
+    path: '/temp/directory'
+})
+```
+
+#### 插件管理命令
+```typescript
+// 这些命令由插件系统内部使用
+await context.invokeTauri('plugin_load_backend', {
+    pluginId: 'my-plugin',
+    backendPath: '/path/to/plugin.dll'
+})
+
+await context.invokeTauri('plugin_unload_backend', {
+    pluginId: 'my-plugin'
+})
+```
+
 ### 前后端通信流程
+
+**当前实现的通信方式**：
 
 ```
 前端插件
    │
-   │ 1. context.invokeTauri('my_plugin_command', args)
+   │ 1. context.invokeTauri('http_request', {url, method, headers})
    ↓
-Tauri IPC
+Tauri IPC 层
    │
-   │ 2. 路由到插件命令
+   │ 2. 主应用通用命令处理
    ↓
-插件后端 (Rust动态库)
+主应用后端 (Rust)
    │
-   │ 3. 执行命令逻辑
+   │ 3. 执行HTTP请求/文件操作等
    ↓
 返回结果
    │
@@ -587,6 +740,11 @@ Tauri IPC
    ↓
 前端插件接收结果
 ```
+
+**插件后端动态库的作用**：
+- 主要用于复杂的数据处理逻辑
+- 通过 `plugin_init()` 函数进行初始化
+- 目前主要通过主应用提供的通用命令间接调用
 
 ## 🛠️ 开发工具
 

@@ -49,6 +49,15 @@ export interface PluginContext {
   /** 调用Tauri命令 */
   invokeTauri: <T = any>(command: string, args?: Record<string, any>) => Promise<T>
   
+  /** 直接调用插件后端函数 */
+  callBackend: <T = any>(functionName: string, args?: any) => Promise<T>
+  
+  /** 获取插件后端状态 */
+  getBackendStatus: () => Promise<boolean>
+  
+  /** 获取插件后端提供的命令列表 */
+  getBackendCommands: () => Promise<Array<{name: string, description: string}>>
+  
   /** HTTP 请求 */
   fetch: (url: string, options?: RequestInit) => Promise<Response>
   

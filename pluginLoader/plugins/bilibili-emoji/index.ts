@@ -101,9 +101,33 @@ export default definePlugin({
         }
 
         /**
-         * 搜索B站表情包装扮
+         * 搜索B站表情包装扮（使用新的后端API）
          */
-        const searchBilibiliSuits = async (keyword: string) => {
+        const searchBilibiliSuitsBackend = async (keyword: string) => {
+            try {
+                context.debug('使用后端API搜索装扮:', keyword)
+                
+                // 直接调用插件后端函数
+                const result = await context.callBackend('search_suits', { keyword })
+                
+                if (result.success) {
+                    context.debug(`后端搜索成功，找到 ${result.suits.length} 个装扮`)
+                    return result.suits
+                } else {
+                    context.debug('后端搜索失败:', result.error)
+                    return []
+                }
+            } catch (error) {
+                context.debug('后端调用异常，回退到HTTP方式:', error)
+                // 回退到原有的HTTP方式
+                return await searchBilibiliSuitsHTTP(keyword)
+            }
+        }
+
+        /**
+         * 搜索B站表情包装扮（HTTP方式，作为后备）
+         */
+        const searchBilibiliSuitsHTTP = async (keyword: string) => {
             try {
                 const url = `https://api.bilibili.com/x/garb/v2/mall/home/search?key_word=${encodeURIComponent(keyword)}`
 

@@ -81,6 +81,9 @@ pub fn run() {
             plugin_unload_backend,
             plugin_remove_config,
             plugin_open_directory,
+            plugin_call_backend,
+            plugin_get_commands,
+            plugin_backend_status,
             commands::http_request,
             commands::read_binary_file,
             commands::remove_dir_all

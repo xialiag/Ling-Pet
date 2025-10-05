@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use walkdir::WalkDir;
 
 // ========== 数据结构定义 ==========
@@ -78,6 +78,7 @@ struct SearchListItem {
 #[derive(Debug, Deserialize)]
 struct SearchProperties {
     #[serde(rename = "type")]
+    #[allow(dead_code)]
     suit_type: Option<String>,
     dlc_act_id: Option<String>,
     dlc_lottery_id: Option<String>,
@@ -391,6 +392,8 @@ fn get_extension(url: &str) -> String {
 
 // ========== 导出的C接口（用于动态库） ==========
 
+use std::ffi::{CStr, CString};
+
 #[no_mangle]
 pub extern "C" fn plugin_init() {
     println!("[bilibili-emoji-backend] Plugin initialized");
@@ -399,4 +402,108 @@ pub extern "C" fn plugin_init() {
 #[no_mangle]
 pub extern "C" fn plugin_cleanup() {
     println!("[bilibili-emoji-backend] Plugin cleaned up");
+}
+
+#[no_mangle]
+pub extern "C" fn plugin_health_check() -> bool {
+    true // 插件后端健康
+}
+
+/// 扫描本地表情包（可直接调用的函数）
+#[no_mangle]
+pub extern "C" fn plugin_scan_emojis(args_ptr: *const i8) -> *mut i8 {
+    if args_ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    
+    unsafe {
+        let args_cstr = CStr::from_ptr(args_ptr);
+        let args_str = match args_cstr.to_str() {
+            Ok(s) => s,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        // 解析参数
+        let args: serde_json::Value = match serde_json::from_str(args_str) {
+            Ok(v) => v,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        let emoji_dir = match args["emojiDir"].as_str() {
+            Some(dir) => Path::new(dir),
+            None => return std::ptr::null_mut(),
+        };
+        
+        // 执行扫描
+        let result = scan_emojis(emoji_dir);
+        
+        // 序列化结果
+        let result_json = match serde_json::to_string(&result) {
+            Ok(json) => json,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        // 返回结果字符串
+        match CString::new(result_json) {
+            Ok(cstring) => cstring.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// 搜索B站装扮（可直接调用的函数）
+#[no_mangle]
+pub extern "C" fn plugin_search_suits(args_ptr: *const i8) -> *mut i8 {
+    if args_ptr.is_null() {
+        return std::ptr::null_mut();
+    }
+    
+    unsafe {
+        let args_cstr = CStr::from_ptr(args_ptr);
+        let args_str = match args_cstr.to_str() {
+            Ok(s) => s,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        // 解析参数
+        let args: serde_json::Value = match serde_json::from_str(args_str) {
+            Ok(v) => v,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        let keyword = match args["keyword"].as_str() {
+            Some(k) => k,
+            None => return std::ptr::null_mut(),
+        };
+        
+        // 执行搜索（需要异步运行时）
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        let result = rt.block_on(search_suits(keyword));
+        
+        // 序列化结果
+        let result_json = match serde_json::to_string(&result) {
+            Ok(json) => json,
+            Err(_) => return std::ptr::null_mut(),
+        };
+        
+        // 返回结果字符串
+        match CString::new(result_json) {
+            Ok(cstring) => cstring.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        }
+    }
+}
+
+/// 释放插件分配的字符串内存
+#[no_mangle]
+pub extern "C" fn plugin_free_string(ptr: *mut i8) {
+    if !ptr.is_null() {
+        unsafe {
+            let _ = CString::from_raw(ptr);
+        }
+    }
 }
