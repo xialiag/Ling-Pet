@@ -159,42 +159,83 @@ project/
 │       ├── index.ts
 │       ├── assets/              # 内置资源
 │       └── backend/src/         # Rust源码
-└── plugin-data/                 # 开发数据
 
 生产环境：
-app/
-├── main-app.exe
-├── plugins/                     # 插件安装目录（只读）
-│   └── bilibili-emoji/
-│       ├── index.js            # 编译后
-│       ├── assets/             # 内置资源（只读）
-│       └── backend/plugin.dll  # 编译后
-└── [用户数据目录]/plugin-data/  # 用户数据（可写）
-    └── bilibili-emoji/
-        ├── config.json
-        ├── cache/
-        └── user-data/
+[用户数据目录]/plugins/          # 插件安装目录
+├── bilibili-emoji/
+│   ├── manifest.json           # 插件元数据
+│   ├── index.js               # 编译后的前端代码
+│   ├── assets/                # 内置资源
+│   └── backend/               # 后端（可选）
+│       ├── plugin.dll         # Windows
+│       ├── libplugin.dylib    # macOS
+│       └── libplugin.so       # Linux
+└── other-plugin/
+    └── ...
+
+用户数据目录位置：
+- Windows: %APPDATA%/YourApp/plugins
+- macOS: ~/Library/Application Support/YourApp/plugins
+- Linux: ~/.config/yourapp/plugins
 ```
 
-### PathResolver 实现
+### 路径管理实现
+
+当前架构使用 **PackageManager** 进行路径管理：
 
 ```typescript
-export class PathResolver {
-  // 插件安装目录（只读）
-  getPluginDir(pluginId: string): string
-  getPluginEntry(pluginId: string): string
-  getPluginAssetsDir(pluginId: string): string
-  getPluginBackend(pluginId: string): string
-
-  // 插件数据目录（可写）
-  getPluginDataDir(pluginId: string): string
-  getPluginConfig(pluginId: string): string
-  getPluginCacheDir(pluginId: string): string
-  getPluginLogDir(pluginId: string): string
-
-  // 环境判断
-  isDevelopment(): boolean
+// 通过 PluginContext 访问路径
+export interface PluginContext {
+  // 获取应用数据目录
+  getAppDataDir: () => Promise<string>
+  
+  // 文件系统操作
+  fs: {
+    readDir: (path: string) => Promise<Array<{name: string, isFile: boolean, isDirectory: boolean}>>
+    readFile: (path: string) => Promise<string>
+    writeFile: (path: string, content: string | Uint8Array) => Promise<void>
+    exists: (path: string) => Promise<boolean>
+    mkdir: (path: string, options?: {recursive?: boolean}) => Promise<void>
+    remove: (path: string) => Promise<void>
+  }
 }
+
+// PackageManager 内部路径管理
+export class PluginPackageManager {
+  private pluginsDir: string = ''  // 插件安装目录
+  
+  async initialize(): Promise<void> {
+    const appData = await appDataDir()
+    this.pluginsDir = await join(appData, 'plugins')
+    // 确保目录存在
+    if (!await exists(this.pluginsDir)) {
+      await mkdir(this.pluginsDir, { recursive: true })
+    }
+  }
+}
+```
+
+### 插件中的路径使用
+
+```typescript
+// 插件代码示例
+export default definePlugin({
+  async onLoad(context) {
+    // 获取应用数据目录
+    const appDataDir = await context.getAppDataDir()
+    
+    // 创建插件专用目录
+    const pluginDataDir = `${appDataDir}/my-plugin-data`
+    await context.fs.mkdir(pluginDataDir, { recursive: true })
+    
+    // 读写文件
+    const configPath = `${pluginDataDir}/config.json`
+    if (await context.fs.exists(configPath)) {
+      const config = await context.fs.readFile(configPath)
+      // 处理配置
+    }
+  }
+})
 ```
 
 ## 🔄 运行时机制
@@ -377,15 +418,19 @@ export default definePlugin({
     context.registerTool({
       name: 'my_tool',
       description: '我的工具',
-      parameters: {
-        type: 'object',
-        properties: {
-          input: { type: 'string', description: '输入参数' }
+      parameters: [
+        {
+          name: 'input',
+          type: 'string',
+          description: '输入参数',
+          required: true
         }
-      },
+      ],
       handler: async (args) => {
         return `处理结果: ${args.input}`
-      }
+      },
+      category: 'utility',
+      examples: ['my_tool({"input": "hello world"})']
     })
     
     // 6. 调用后端
