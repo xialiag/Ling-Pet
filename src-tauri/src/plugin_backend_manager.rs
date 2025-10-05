@@ -221,20 +221,19 @@ pub fn initialize_logging_system(app_handle: AppHandle) {
         *log_sender = Some(sender.clone());
     }
 
-    // 启动日志转发任务
-    tokio::spawn(async move {
+    info!("[PluginBackend] Logging system initialized");
+    
+    // 延迟启动日志转发任务，使用 app_handle 的异步上下文
+    tauri::async_runtime::spawn(async move {
         let mut receiver = sender.subscribe();
 
         while let Ok(log_entry) = receiver.recv().await {
-            // 转发日志到前端
             // 转发日志到前端
             if let Err(e) = app_handle.emit("plugin:log", &log_entry) {
                 eprintln!("[LogSystem] Failed to emit log: {}", e);
             }
         }
     });
-
-    info!("[PluginBackend] Logging system initialized");
 }
 
 /// 初始化日志系统（兼容旧接口）
@@ -307,7 +306,7 @@ pub async fn subscribe_plugin_logs(app: AppHandle) -> Result<(), String> {
     if let Some(sender) = log_sender.as_ref() {
         let mut receiver = sender.subscribe();
 
-        tokio::spawn(async move {
+        tauri::async_runtime::spawn(async move {
             while let Ok(log_entry) = receiver.recv().await {
                 // 转发日志到前端
                 if let Err(e) = app.emit("plugin-log", &log_entry) {
@@ -324,7 +323,7 @@ pub async fn subscribe_plugin_logs(app: AppHandle) -> Result<(), String> {
 
 /// 启动性能监控
 pub fn start_metrics_monitoring() {
-    tokio::spawn(async {
+    tauri::async_runtime::spawn(async {
         let mut interval = interval(Duration::from_secs(5)); // 每5秒更新一次
 
         loop {
