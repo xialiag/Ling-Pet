@@ -1,5 +1,5 @@
 {
-  "name": "@ling-pet/plugin-bilibili-emoji",
+  "name": "bilibili-emoji",
   "version": "2.0.0",
   "description": "B站表情包管理、下载和发送插件",
   "main": "index.ts",
