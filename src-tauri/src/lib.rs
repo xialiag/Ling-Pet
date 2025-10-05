@@ -121,11 +121,11 @@ pub fn run() {
                 .map_err(|err| -> Box<dyn std::error::Error> { Box::new(err) })?;
 
             // 中文注释：初始化通知窗口（隐藏且已定位），避免首次通知时再构建
-            notification::init(&app.handle()).ok();
+            notification::init(app.handle()).ok();
 
             // 初始化增强的插件后端系统
-            plugin_backend_enhanced::initialize_logging_system(app.handle());
-            plugin_backend_enhanced::start_metrics_monitoring();
+            plugin_backend_manager::initialize_logging_system(app.handle().clone());
+            plugin_backend_manager::start_metrics_monitoring();
 
             // 显式隐藏 settings 窗口（保险做法）
             // if let Some(settings_window) = app.get_webview_window("settings") {

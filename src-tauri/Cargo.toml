@@ -28,7 +28,7 @@ tauri-plugin-pinia = "3"
 tauri-plugin-log = "2"
 log = "0.4"
 tauri-plugin-http = "2"
-lazy_static = "1.4"
+lazy_static = "1.5"
 tokio = { version = "1", features = ["full"] }
 libloading = "0.8"
 tauri-plugin-screenshots = "2.2.0"
@@ -36,8 +36,6 @@ tauri-plugin-fs = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 zip = "2.2"
-libloading = "0.8"
-lazy_static = "1.5"
 reqwest = { version = "0.11", features = ["json"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
