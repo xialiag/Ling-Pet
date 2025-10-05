@@ -1,6 +1,6 @@
 # 运行
 
-目前只适配了macOS。
+windows、MacOS已适配
 
 1. 安装[ActivityWatch](https://github.com/ActivityWatch/activitywatch/releases/tag/v0.13.2)
 
