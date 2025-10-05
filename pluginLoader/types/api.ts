@@ -42,7 +42,7 @@ export interface PluginContext {
 
   /** 导航到插件页面 */
   navigateToPage: (pageId: string) => void
-  
+
   /** 注册外部页面组件 */
   registerExternalPage: (config: ExternalPageConfig) => UnhookFunction
 
@@ -66,6 +66,18 @@ export interface PluginContext {
 
   /** 获取插件后端提供的命令列表 */
   getBackendCommands: () => Promise<Array<{ name: string, description: string }>>
+
+  /** 获取后端性能指标 */
+  getBackendMetrics: () => Promise<BackendMetrics>
+
+  /** 检查后端健康状态 */
+  checkBackendHealth: () => Promise<boolean>
+
+  /** 重启后端（热重载） */
+  restartBackend: () => Promise<boolean>
+
+  /** 订阅后端日志 */
+  subscribeBackendLogs: (callback: (log: PluginLogEntry) => void) => UnhookFunction
 
   /** HTTP 请求 */
   fetch: (url: string, options?: RequestInit) => Promise<Response>
@@ -545,6 +557,30 @@ export interface ExternalPageConfig {
   }
   /** 路由元数据 */
   meta?: Record<string, any>
+}
+
+/**
+ * 插件日志条目
+ */
+export interface PluginLogEntry {
+  plugin_id: string
+  level: string
+  message: string
+  timestamp: number
+  source: string
+}
+
+/**
+ * 后端性能指标
+ */
+export interface BackendMetrics {
+  plugin_id: string
+  memory_usage: number
+  cpu_time: number
+  function_calls: Record<string, number>
+  last_error?: string
+  uptime: number
+  status: string
 }
 
 /**

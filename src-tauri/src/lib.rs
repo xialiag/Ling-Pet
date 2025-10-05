@@ -6,12 +6,14 @@ mod notification;
 mod os;
 mod plugin_config;
 mod plugin_manager;
+mod plugin_backend_manager;
 mod sbv2_manager;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod system_tray;
 use commands::*;
 use plugin_config::*;
 use plugin_manager::*;
+use plugin_backend_manager::*;
 use sbv2_manager::Sbv2Manager;
 
 // 只在 macOS 平台上引入 tauri_nspanel
@@ -84,11 +86,24 @@ pub fn run() {
             plugin_call_backend,
             plugin_get_commands,
             plugin_backend_status,
+            // 新的后端管理命令
+            // 新的后端管理命令
+            load_plugin_backend,
+            unload_plugin_backend,
+            call_plugin_backend,
+            get_backend_metrics,
+            get_all_backend_metrics,
+            check_backend_health,
+            restart_plugin_backend,
+            subscribe_plugin_logs,
             commands::http_request,
             commands::read_binary_file,
             commands::remove_dir_all
         ])
         .setup(|app| {
+            // 初始化插件后端日志系统
+            plugin_backend_manager::init_logging_system();
+            
             let main_window = app.get_webview_window("main").unwrap();
             // 设置平台特定配置
             if os::macos::is_macos() {
@@ -107,6 +122,10 @@ pub fn run() {
 
             // 中文注释：初始化通知窗口（隐藏且已定位），避免首次通知时再构建
             notification::init(&app.handle()).ok();
+
+            // 初始化增强的插件后端系统
+            plugin_backend_enhanced::initialize_logging_system(app.handle());
+            plugin_backend_enhanced::start_metrics_monitoring();
 
             // 显式隐藏 settings 窗口（保险做法）
             // if let Some(settings_window) = app.get_webview_window("settings") {

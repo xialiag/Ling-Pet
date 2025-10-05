@@ -815,6 +815,50 @@ export class PluginLoader {
         }
       },
 
+      getBackendMetrics: async (): Promise<any> => {
+        try {
+          return await invoke('get_backend_metrics', {
+            plugin_id: plugin.name
+          })
+        } catch (error) {
+          console.warn(`[Plugin ${plugin.name}] Failed to get backend metrics:`, error)
+          return null
+        }
+      },
+
+      checkBackendHealth: async (): Promise<boolean> => {
+        try {
+          return await invoke<boolean>('check_backend_health', {
+            plugin_id: plugin.name
+          })
+        } catch (error) {
+          console.warn(`[Plugin ${plugin.name}] Failed to check backend health:`, error)
+          return false
+        }
+      },
+
+      restartBackend: async (): Promise<boolean> => {
+        try {
+          return await invoke<boolean>('restart_plugin_backend', {
+            plugin_id: plugin.name
+          })
+        } catch (error) {
+          console.warn(`[Plugin ${plugin.name}] Failed to restart backend:`, error)
+          return false
+        }
+      },
+
+      subscribeBackendLogs: (callback: (log: any) => void) => {
+        // 监听后端日志事件
+        const unlisten = this.eventBus.on('plugin-log', (log: any) => {
+          if (log.plugin_id === plugin.name) {
+            callback(log)
+          }
+        })
+        
+        return unlisten
+      },
+
       fetch: async (url: string, options?: RequestInit): Promise<Response> => {
         const { fetch: tauriFetch } = await import('@tauri-apps/plugin-http')
         return tauriFetch(url, options)
