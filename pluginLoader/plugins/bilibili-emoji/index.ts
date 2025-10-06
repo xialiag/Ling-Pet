@@ -11,7 +11,7 @@
 
 import { definePlugin } from '../../core/pluginApi'
 import type { PluginContext } from '../../types/api'
-import { emojiDebug } from './debug'
+import { createDebugger, emojiDebug, debugUtils, type DebugLogger } from './debug'
 
 interface EmojiInfo {
     name: string
@@ -188,12 +188,22 @@ export default definePlugin({
         // 表情包缓存
         let emojiCache: EmojiInfo[] = []
 
+        // 创建调试器
+        const debugLogger: DebugLogger = {
+            info: (...args) => context.debug('[INFO]', ...args),
+            warn: (...args) => context.debug('[WARN]', ...args),
+            error: (...args) => context.debug('[ERROR]', ...args),
+            debug: (...args) => config.debugMode && context.debug('[DEBUG]', ...args)
+        }
+        const emojiDebugger = createDebugger(debugLogger)
+
         /**
          * 扫描本地表情包
          */
         const scanEmojis = async (): Promise<EmojiInfo[]> => {
+            const endTimer = emojiDebugger.startTimer('scan')
             try {
-                context.debug('开始扫描表情包...')
+                emojiDebugger.log('info', '开始扫描表情包...')
 
                 // 获取表情包目录
                 const appDataDir = await context.getAppDataDir()
@@ -202,6 +212,7 @@ export default definePlugin({
                 // 确保目录存在
                 if (!await context.fs.exists(emojiDir)) {
                     await context.fs.mkdir(emojiDir, { recursive: true })
+                    emojiDebugger.log('info', '创建表情包目录:', emojiDir)
                     return []
                 }
 
@@ -209,12 +220,14 @@ export default definePlugin({
 
                 // 扫描分类目录
                 const categories = await context.fs.readDir(emojiDir)
+                emojiDebugger.log('debug', `找到 ${categories.length} 个分类目录`)
 
                 for (const category of categories) {
                     if (!category.isDirectory) continue
 
                     const categoryPath = `${emojiDir}/${category.name}`
                     const files = await context.fs.readDir(categoryPath)
+                    emojiDebugger.log('debug', `分类 ${category.name} 包含 ${files.length} 个文件`)
 
                     for (const file of files) {
                         if (!file.isFile) continue
@@ -223,22 +236,30 @@ export default definePlugin({
                         if (!ext || !['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) continue
 
                         const name = file.name.substring(0, file.name.lastIndexOf('.'))
-                        const type = ext === 'gif' ? 'gif' : 'static'
+                        const type: 'static' | 'gif' = ext === 'gif' ? 'gif' : 'static'
 
-                        emojis.push({
+                        const emoji: EmojiInfo = {
                             name,
                             path: `${categoryPath}/${file.name}`,
                             type,
                             category: category.name
-                        })
+                        }
+
+                        if (debugUtils.validateEmojiData(emoji)) {
+                            emojis.push(emoji)
+                        } else {
+                            emojiDebugger.log('warn', '无效的表情包数据:', emoji)
+                        }
                     }
                 }
 
-                context.debug(`扫描完成，找到 ${emojis.length} 个表情包`)
+                emojiDebugger.log('info', `扫描完成，找到 ${emojis.length} 个表情包`)
                 return emojis
             } catch (error) {
-                context.debug('扫描失败:', error)
+                emojiDebugger.log('error', '扫描失败:', error)
                 return []
+            } finally {
+                endTimer()
             }
         }
 
@@ -246,13 +267,26 @@ export default definePlugin({
          * 搜索本地表情包
          */
         const searchLocalEmojis = (query: string, limit: number = 10): EmojiInfo[] => {
-            const lowerQuery = query.toLowerCase()
-            return emojiCache
-                .filter(emoji =>
-                    emoji.name.toLowerCase().includes(lowerQuery) ||
-                    emoji.category.toLowerCase().includes(lowerQuery)
-                )
-                .slice(0, limit)
+            const endTimer = emojiDebugger.startTimer('search')
+            try {
+                emojiDebugger.log('debug', `搜索本地表情包: "${query}", 限制: ${limit}`)
+                
+                const lowerQuery = query.toLowerCase()
+                const results = emojiCache
+                    .filter(emoji =>
+                        emoji.name.toLowerCase().includes(lowerQuery) ||
+                        emoji.category.toLowerCase().includes(lowerQuery)
+                    )
+                    .slice(0, limit)
+                
+                emojiDebugger.log('debug', `搜索结果: ${results.length} 个表情包`)
+                return results
+            } catch (error) {
+                emojiDebugger.log('error', '本地搜索失败:', error)
+                return []
+            } finally {
+                endTimer()
+            }
         }
 
         /**
@@ -892,6 +926,131 @@ export default definePlugin({
             }
         })
 
+        // 调试工具
+        const unregisterDebugTool = context.registerTool({
+            name: 'debug_emoji_plugin',
+            description: '获取表情包插件的调试信息',
+            category: 'debug',
+            parameters: [
+                {
+                    name: 'infoType',
+                    type: 'string',
+                    description: '信息类型：status, config, stats, system',
+                    required: false
+                }
+            ],
+            examples: [
+                'debug_emoji_plugin()',
+                'debug_emoji_plugin("status")',
+                'debug_emoji_plugin("stats")'
+            ],
+            handler: async (infoType?: string) => {
+                const debugInfo = {
+                    timestamp: Date.now(),
+                    plugin: {
+                        name: 'bilibili-emoji',
+                        version: '3.0.0',
+                        loaded: true
+                    },
+                    status: {
+                        emojiCount: emojiCache.length,
+                        categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                        backendStatus: await context.getBackendStatus()
+                    },
+                    config: {
+                        enabled: config.enabled,
+                        autoScan: config.autoScan,
+                        maxDisplaySize: config.maxDisplaySize,
+                        enableDownload: config.enableDownload,
+                        showInChat: config.showInChat,
+                        debugMode: config.debugMode
+                    },
+                    stats: Array.from(new Set(emojiCache.map(e => e.category))).map(category => {
+                        const categoryEmojis = emojiCache.filter(e => e.category === category)
+                        return {
+                            category,
+                            total: categoryEmojis.length,
+                            static: categoryEmojis.filter(e => e.type === 'static').length,
+                            gif: categoryEmojis.filter(e => e.type === 'gif').length
+                        }
+                    }),
+                    system: {
+                        appDataDir: await context.getAppDataDir(),
+                        tools: context.getAvailableTools().filter(t => t.pluginId === 'bilibili-emoji').length,
+                        rpcMethods: ['searchEmoji', 'getEmojiCache', 'getDebugInfo', 'getEmojiStats', 'testFunction']
+                    }
+                }
+
+                if (infoType) {
+                    return debugInfo[infoType as keyof typeof debugInfo] || debugInfo
+                }
+                
+                return debugInfo
+            }
+        })
+
+        const unregisterTestTool = context.registerTool({
+            name: 'test_emoji_function',
+            description: '测试表情包插件的内部函数',
+            category: 'debug',
+            parameters: [
+                {
+                    name: 'functionName',
+                    type: 'string',
+                    description: '要测试的函数名：scanEmojis, searchLocalEmojis, searchBilibiliSuitsBackend',
+                    required: true
+                },
+                {
+                    name: 'args',
+                    type: 'array',
+                    description: '函数参数数组',
+                    required: false
+                }
+            ],
+            examples: [
+                'test_emoji_function("scanEmojis")',
+                'test_emoji_function("searchLocalEmojis", ["开心", 5])',
+                'test_emoji_function("searchBilibiliSuitsBackend", ["鸽宝"])'
+            ],
+            handler: async (functionName: string, args: any[] = []) => {
+                const startTime = Date.now()
+                try {
+                    let result
+                    switch (functionName) {
+                        case 'scanEmojis':
+                            result = await scanEmojis()
+                            break
+                        case 'searchLocalEmojis':
+                            result = searchLocalEmojis(args[0] || '', args[1] || 10)
+                            break
+                        case 'searchBilibiliSuitsBackend':
+                            result = await searchBilibiliSuitsBackend(args[0] || '鸽宝')
+                            break
+                        default:
+                            throw new Error(`未知的函数: ${functionName}`)
+                    }
+                    
+                    return {
+                        success: true,
+                        functionName,
+                        args,
+                        result,
+                        duration: Date.now() - startTime,
+                        timestamp: Date.now()
+                    }
+                } catch (error) {
+                    return {
+                        success: false,
+                        functionName,
+                        args,
+                        error: error instanceof Error ? error.message : String(error),
+                        duration: Date.now() - startTime,
+                        timestamp: Date.now()
+                    }
+                }
+            }
+        })
+
         // ========== 注册RPC方法 ==========
 
         const unregisterRPCSearch = context.registerRPC('searchEmoji', async (query: string, limit?: number) => {
@@ -900,6 +1059,77 @@ export default definePlugin({
 
         const unregisterRPCCache = context.registerRPC('getEmojiCache', async () => {
             return emojiCache
+        })
+
+        // 调试相关的RPC方法
+        const unregisterRPCDebug = context.registerRPC('getDebugInfo', async () => {
+            return {
+                status: {
+                    emojiCount: emojiCache.length,
+                    categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                    lastScan: Date.now(),
+                    backendStatus: await context.getBackendStatus()
+                },
+                config: {
+                    enabled: config.enabled,
+                    autoScan: config.autoScan,
+                    maxDisplaySize: config.maxDisplaySize,
+                    enableDownload: config.enableDownload,
+                    showInChat: config.showInChat,
+                    debugMode: config.debugMode
+                },
+                system: {
+                    appDataDir: await context.getAppDataDir(),
+                    version: '3.0.0'
+                }
+            }
+        })
+
+        const unregisterRPCStats = context.registerRPC('getEmojiStats', async () => {
+            const categories = Array.from(new Set(emojiCache.map(e => e.category)))
+            return categories.map(category => {
+                const categoryEmojis = emojiCache.filter(e => e.category === category)
+                return {
+                    category,
+                    total: categoryEmojis.length,
+                    static: categoryEmojis.filter(e => e.type === 'static').length,
+                    gif: categoryEmojis.filter(e => e.type === 'gif').length
+                }
+            })
+        })
+
+        const unregisterRPCTest = context.registerRPC('testFunction', async (functionName: string, ...args: any[]) => {
+            const startTime = Date.now()
+            try {
+                let result
+                switch (functionName) {
+                    case 'scanEmojis':
+                        result = await scanEmojis()
+                        break
+                    case 'searchLocalEmojis':
+                        result = searchLocalEmojis(args[0] || '', args[1] || 10)
+                        break
+                    case 'searchBilibiliSuitsBackend':
+                        result = await searchBilibiliSuitsBackend(args[0] || '鸽宝')
+                        break
+                    default:
+                        throw new Error(`未知的测试函数: ${functionName}`)
+                }
+                
+                return {
+                    success: true,
+                    result,
+                    duration: Date.now() - startTime,
+                    timestamp: Date.now()
+                }
+            } catch (error) {
+                return {
+                    success: false,
+                    error: error instanceof Error ? error.message : String(error),
+                    duration: Date.now() - startTime,
+                    timestamp: Date.now()
+                }
+            }
         })
 
         // ========== 创建共享状态 ==========
@@ -950,6 +1180,23 @@ export default definePlugin({
             }
             ` : ''}
         `, { id: 'bilibili-emoji-styles' }) : () => {}
+
+        // 注册调试页面
+        const unregisterDebugPage = context.registerExternalPage({
+            path: '/plugins/bilibili-emoji/debug',
+            name: 'bilibili-emoji-debug',
+            componentPath: 'pages/DebugPage.vue',
+            title: '🐛 B站表情包调试',
+            icon: 'mdi-bug',
+            description: '表情包插件的全面调试和管理工具',
+            showInNavigation: true,
+            navigationGroup: '调试工具',
+            container: {
+                useDefault: true,
+                showHeader: true,
+                showBackButton: true
+            }
+        })
 
         // 注册设置页面操作按钮
         const unregisterScanAction = context.registerSettingsAction({
@@ -1018,7 +1265,128 @@ export default definePlugin({
             }
         })
 
+        const unregisterDebugAction = context.registerSettingsAction({
+            label: '打开调试面板',
+            icon: 'mdi-bug',
+            color: 'info',
+            handler: async () => {
+                context.navigateToPage('bilibili-emoji-debug')
+            }
+        })
+
+        const unregisterExportAction = context.registerSettingsAction({
+            label: '导出诊断信息',
+            icon: 'mdi-download',
+            color: 'secondary',
+            handler: async () => {
+                try {
+                    const diagnosticInfo = {
+                        timestamp: new Date().toISOString(),
+                        plugin: {
+                            name: 'bilibili-emoji',
+                            version: '3.0.0',
+                            config: {
+                                enabled: config.enabled,
+                                autoScan: config.autoScan,
+                                maxDisplaySize: config.maxDisplaySize,
+                                enableDownload: config.enableDownload,
+                                showInChat: config.showInChat
+                            }
+                        },
+                        system: {
+                            emojiCount: emojiCache.length,
+                            categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                            appDataDir: await context.getAppDataDir(),
+                            backendStatus: await context.getBackendStatus()
+                        },
+                        emojis: emojiCache.slice(0, 10), // 只导出前10个作为示例
+                        tools: context.getAvailableTools().filter(t => t.pluginId === 'bilibili-emoji')
+                    }
+                    
+                    const dataStr = JSON.stringify(diagnosticInfo, null, 2)
+                    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+                    const url = URL.createObjectURL(dataBlob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = `bilibili-emoji-diagnostic-${Date.now()}.json`
+                    link.click()
+                    URL.revokeObjectURL(url)
+                    
+                    alert('诊断信息已导出！')
+                } catch (error) {
+                    alert('导出失败：' + (error instanceof Error ? error.message : String(error)))
+                }
+            }
+        })
+
+        // 设置全局调试对象
+        if (typeof window !== 'undefined') {
+            (window as any).emojiDebug = {
+                ...emojiDebug,
+                info() {
+                    console.log('📊 B站表情包插件信息', {
+                        name: 'bilibili-emoji',
+                        version: '3.0.0',
+                        description: 'B站表情包管理、下载和发送（支持DLC，智能提取）',
+                        emojiCount: emojiCache.length,
+                        categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                        config
+                    })
+                },
+                status() {
+                    console.log('🔍 插件状态', {
+                        loaded: true,
+                        emojiCount: emojiCache.length,
+                        categories: Array.from(new Set(emojiCache.map(e => e.category))),
+                        backendStatus: 'checking...',
+                        lastScan: new Date().toLocaleString()
+                    })
+                },
+                logs(level?: string) {
+                    const logs = emojiDebugger.getLogs(level, 20)
+                    console.table(logs.map(log => ({
+                        时间: new Date(log.timestamp).toLocaleTimeString(),
+                        级别: log.level.toUpperCase(),
+                        消息: log.message
+                    })))
+                },
+                metrics() {
+                    console.log('📈 性能指标', emojiDebugger.getMetrics())
+                },
+                async test() {
+                    console.log('🧪 开始功能测试...')
+                    const results = await emojiDebugger.testEmojiFeatures(context)
+                    console.log('测试结果:', results)
+                    const report = emojiDebugger.generateTestReport(results)
+                    console.log(report)
+                },
+                export() {
+                    const debugInfo = emojiDebugger.exportDebugInfo()
+                    const blob = new Blob([debugInfo], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const link = document.createElement('a')
+                    link.href = url
+                    link.download = `emoji-debug-${Date.now()}.json`
+                    link.click()
+                    URL.revokeObjectURL(url)
+                    console.log('📤 调试信息已导出')
+                },
+                clear() {
+                    emojiDebugger.clearLogs()
+                    console.log('🗑️ 日志已清空')
+                },
+                navigate() {
+                    context.navigateToPage('bilibili-emoji-debug')
+                    console.log('🔗 正在打开调试页面...')
+                },
+                debugger: emojiDebugger,
+                utils: debugUtils
+            }
+        }
+
+        emojiDebugger.log('info', '🎉 B站表情包插件加载完成')
         context.debug('🎉 B站表情包插件加载完成')
+        context.debug('💡 在控制台输入 emojiDebug.help() 查看调试命令')
 
         // 返回清理函数
         return () => {
@@ -1040,6 +1408,14 @@ export default definePlugin({
             unregisterScanAction()
             unregisterStatsAction()
             unregisterClearAction()
+            unregisterDebugAction()
+            unregisterExportAction()
+            unregisterDebugPage()
+            unregisterRPCDebug()
+            unregisterRPCStats()
+            unregisterRPCTest()
+            unregisterDebugTool()
+            unregisterTestTool()
             
             context.debug('✅ B站表情包插件清理完成')
         }

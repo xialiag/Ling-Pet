@@ -72,6 +72,7 @@ pub fn run() {
             notification::hide_notification,
             get_plugin_config,
             set_plugin_config,
+            get_plugin_enabled,
             set_plugin_enabled,
             remove_plugin_config,
             open_plugin_folder,

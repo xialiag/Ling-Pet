@@ -76,7 +76,7 @@ impl PluginConfigManager {
     pub fn get_plugin_enabled(&self, plugin_name: &str) -> Result<bool, String> {
         match self.get_config(plugin_name, "enabled")? {
             Some(Value::Bool(enabled)) => Ok(enabled),
-            _ => Ok(true), // 默认启用
+            _ => Ok(false), // 默认禁用
         }
     }
 
@@ -121,6 +121,15 @@ pub fn set_plugin_config(
     let manager = PluginConfigManager::new(&app)?;
     let parsed_value: Value = serde_json::from_str(&value).map_err(|e| e.to_string())?;
     manager.set_config(&plugin_name, &key, parsed_value)
+}
+
+#[tauri::command]
+pub fn get_plugin_enabled(
+    app: AppHandle,
+    plugin_name: String,
+) -> Result<bool, String> {
+    let manager = PluginConfigManager::new(&app)?;
+    manager.get_plugin_enabled(&plugin_name)
 }
 
 #[tauri::command]

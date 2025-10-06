@@ -35,7 +35,7 @@
                   <v-switch
                     v-model="plugin.enabled"
                     @click.stop
-                    @change="togglePlugin(plugin.name, plugin.enabled)"
+                    @change="togglePlugin(plugin.id, plugin.enabled)"
                     color="primary"
                     density="compact"
                     hide-details
@@ -57,9 +57,9 @@
                       :key="key"
                       :field-key="key"
                       :schema="schema"
-                      :value="pluginConfigs[plugin.name]?.[key]"
-                      :all-config="pluginConfigs[plugin.name] || {}"
-                      @update:value="savePluginConfig(plugin.name, key, $event)"
+                      :value="pluginConfigs[plugin.id]?.[key]"
+                      :all-config="pluginConfigs[plugin.id] || {}"
+                      @update:value="savePluginConfig(plugin.id, key, $event)"
                     />
                   </div>
                   
@@ -69,7 +69,7 @@
                     <div class="d-flex gap-2 flex-wrap">
                       <!-- 插件自定义操作按钮 -->
                       <v-btn
-                        v-for="(action, index) in getPluginActions(plugin.name)"
+                        v-for="(action, index) in getPluginActions(plugin.id)"
                         :key="index"
                         @click="action.handler"
                         :color="action.color || 'primary'"
@@ -84,7 +84,7 @@
                       
                       <!-- 卸载按钮 -->
                       <v-btn
-                        @click="uninstallPlugin(plugin.name)"
+                        @click="uninstallPlugin(plugin.id)"
                         :disabled="uninstalling"
                         color="error"
                         variant="outlined"
@@ -222,6 +222,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import PluginConfigField from './PluginConfigField.vue'
 
 interface PluginInfo {
+  id: string
   name: string
   version: string
   description?: string
@@ -252,12 +253,13 @@ const loadPlugins = async () => {
       const pluginList = pluginLoader.getAllPlugins ? pluginLoader.getAllPlugins() : pluginLoader.getPlugins()
       
       plugins.value = pluginList.map((p: any) => ({
+        id: p.id || p.name,
         name: p.name || p.id,
         version: p.version,
         description: p.description,
         author: p.author,
-        enabled: p.enabled !== false,
-        loaded: p.loaded !== false,
+        enabled: Boolean(p.enabled),
+        loaded: Boolean(p.loaded),
         error: p.error,
         configSchema: p.configSchema
       }))
@@ -266,16 +268,16 @@ const loadPlugins = async () => {
       
       // 加载每个插件的配置
       for (const plugin of plugins.value) {
-        if (!pluginConfigs[plugin.name]) {
-          pluginConfigs[plugin.name] = {}
+        if (!pluginConfigs[plugin.id]) {
+          pluginConfigs[plugin.id] = {}
         }
         
         // 加载配置值
         if (plugin.configSchema) {
           for (const key of Object.keys(plugin.configSchema)) {
             const schema = plugin.configSchema[key]
-            const savedValue = await loadPluginConfig(plugin.name, key)
-            pluginConfigs[plugin.name][key] = savedValue !== null ? savedValue : schema.default
+            const savedValue = await loadPluginConfig(plugin.id, key)
+            pluginConfigs[plugin.id][key] = savedValue !== null ? savedValue : schema.default
           }
         }
       }
@@ -289,9 +291,9 @@ const loadPlugins = async () => {
 }
 
 // 加载插件配置
-const loadPluginConfig = async (pluginName: string, key: string): Promise<any> => {
+const loadPluginConfig = async (pluginId: string, key: string): Promise<any> => {
   try {
-    const value = await invoke('get_plugin_config', { pluginName, key })
+    const value = await invoke('get_plugin_config', { pluginName: pluginId, key })
     return value
   } catch {
     return null
@@ -299,24 +301,24 @@ const loadPluginConfig = async (pluginName: string, key: string): Promise<any> =
 }
 
 // 保存插件配置
-const savePluginConfig = async (pluginName: string, key: string, value: any) => {
+const savePluginConfig = async (pluginId: string, key: string, value: any) => {
   try {
     // 更新本地配置
-    if (!pluginConfigs[pluginName]) {
-      pluginConfigs[pluginName] = {}
+    if (!pluginConfigs[pluginId]) {
+      pluginConfigs[pluginId] = {}
     }
-    pluginConfigs[pluginName][key] = value
+    pluginConfigs[pluginId][key] = value
     
     // 保存到存储
-    await invoke('set_plugin_config', { pluginName, key, value: JSON.stringify(value) })
+    await invoke('set_plugin_config', { pluginName: pluginId, key, value: JSON.stringify(value) })
     
     // 通知插件配置已更新
     const pluginLoader = (window as any).__pluginLoader
     if (pluginLoader) {
-      pluginLoader.notifyConfigChange(pluginName, key, value)
+      pluginLoader.notifyConfigChange(pluginId, key, value)
     }
     
-    console.log(`[PluginSettings] 配置已保存: ${pluginName}.${key} = ${value}`)
+    console.log(`[PluginSettings] 配置已保存: ${pluginId}.${key} = ${value}`)
   } catch (error) {
     console.error('保存插件配置失败:', error)
     errorMessage.value = `保存配置失败: ${error}`
@@ -324,21 +326,45 @@ const savePluginConfig = async (pluginName: string, key: string, value: any) => 
 }
 
 // 切换插件启用状态
-const togglePlugin = async (pluginName: string, enabled: boolean) => {
+const togglePlugin = async (pluginId: string, enabled: boolean) => {
   try {
-    await invoke('set_plugin_enabled', { pluginName, enabled })
+    // 保存到持久化存储
+    await invoke('set_plugin_enabled', { pluginName: pluginId, enabled })
+    
+    // 更新本地状态
+    const plugin = plugins.value.find(p => p.id === pluginId)
+    if (plugin) {
+      plugin.enabled = enabled
+      plugin.loaded = enabled // 如果禁用，则标记为未加载
+    }
     
     // 通知插件加载器
     const pluginLoader = (window as any).__pluginLoader
     if (pluginLoader) {
       if (enabled) {
-        await pluginLoader.enablePlugin(pluginName)
+        await pluginLoader.enablePlugin(pluginId)
+        // 更新加载状态
+        if (plugin) {
+          plugin.loaded = true
+        }
       } else {
-        await pluginLoader.disablePlugin(pluginName)
+        await pluginLoader.disablePlugin(pluginId)
+        // 更新加载状态
+        if (plugin) {
+          plugin.loaded = false
+        }
       }
     }
+    
+    console.log(`[PluginSettings] Plugin ${pluginId} ${enabled ? 'enabled' : 'disabled'}`)
   } catch (error) {
     console.error('切换插件状态失败:', error)
+    
+    // 如果操作失败，恢复UI状态
+    const plugin = plugins.value.find(p => p.id === pluginId)
+    if (plugin) {
+      plugin.enabled = !enabled
+    }
   }
 }
 
@@ -414,11 +440,11 @@ const installPlugin = async () => {
 }
 
 // 获取插件的自定义操作按钮
-const getPluginActions = (pluginName: string) => {
+const getPluginActions = (pluginId: string) => {
   try {
     const pluginLoader = (window as any).__pluginLoader
     if (pluginLoader && pluginLoader.getPluginSettingsActions) {
-      return pluginLoader.getPluginSettingsActions(pluginName)
+      return pluginLoader.getPluginSettingsActions(pluginId)
     }
   } catch (error) {
     console.error('获取插件操作失败:', error)
@@ -427,8 +453,8 @@ const getPluginActions = (pluginName: string) => {
 }
 
 // 卸载插件 - 显示确认对话框
-const uninstallPlugin = (pluginName: string) => {
-  pluginToUninstall.value = pluginName
+const uninstallPlugin = (pluginId: string) => {
+  pluginToUninstall.value = pluginId
   uninstallDialog.value = true
 }
 

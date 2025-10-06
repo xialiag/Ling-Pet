@@ -2,10 +2,27 @@
   "id": "hook-test",
   "name": "Hook测试插件",
   "version": "1.0.0",
-  "description": "测试Hook功能 - 在Live2D模型上方显示Hook组件",
-  "author": "Test",
+  "description": "测试各种Hook功能",
+  "author": "Plugin System",
+  "entry": "index.ts",
   "permissions": [
-    "hook:component"
+    "hook:component",
+    "hook:store",
+    "hook:service"
   ],
-  "entry": "index.ts"
+  "config": {
+    "type": "object",
+    "properties": {
+      "enableComponentHooks": {
+        "type": "boolean",
+        "title": "启用组件Hook",
+        "default": true
+      },
+      "enableStoreHooks": {
+        "type": "boolean",
+        "title": "启用Store Hook",
+        "default": true
+      }
+    }
+  }
 }

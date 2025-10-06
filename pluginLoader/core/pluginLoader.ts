@@ -66,6 +66,9 @@ export class PluginLoader {
     // 设置跨窗口插件同步
     await this.setupCrossWindowSync()
 
+    // 自动加载已启用的插件
+    await this.loadEnabledPlugins()
+
     console.log('[PluginLoader] Initialized')
   }
 
@@ -101,6 +104,42 @@ export class PluginLoader {
       console.log('[PluginLoader] Cross-window sync setup complete')
     } catch (error) {
       console.warn('[PluginLoader] Failed to setup cross-window sync:', error)
+    }
+  }
+
+  /**
+   * 自动加载已启用的插件
+   */
+  private async loadEnabledPlugins(): Promise<void> {
+    try {
+      console.log('[PluginLoader] Loading enabled plugins...')
+      
+      // 获取所有已安装的插件
+      const allPlugins = packageManager.getInstalledPlugins()
+      
+      // 过滤出已启用的插件
+      const enabledPlugins = allPlugins.filter(plugin => plugin.enabled)
+      
+      console.log(`[PluginLoader] Found ${enabledPlugins.length} enabled plugins`)
+      
+      // 逐个加载已启用的插件
+      for (const plugin of enabledPlugins) {
+        try {
+          console.log(`[PluginLoader] Auto-loading enabled plugin: ${plugin.manifest.id}`)
+          const success = await this.loadPlugin(plugin.manifest.id)
+          if (success) {
+            console.log(`[PluginLoader] Successfully auto-loaded plugin: ${plugin.manifest.id}`)
+          } else {
+            console.warn(`[PluginLoader] Failed to auto-load plugin: ${plugin.manifest.id}`)
+          }
+        } catch (error) {
+          console.error(`[PluginLoader] Error auto-loading plugin ${plugin.manifest.id}:`, error)
+        }
+      }
+      
+      console.log('[PluginLoader] Enabled plugins loading complete')
+    } catch (error) {
+      console.error('[PluginLoader] Failed to load enabled plugins:', error)
     }
   }
 
@@ -500,6 +539,9 @@ export class PluginLoader {
     const success = await this.loadPlugin(pluginName)
 
     if (success) {
+      // 更新包管理器中的状态
+      packageManager.setPluginEnabled(pluginName, true)
+      
       // 保存到已启用列表
       await this.saveEnabledPlugins()
 
@@ -522,6 +564,9 @@ export class PluginLoader {
     const success = await this.unloadPlugin(pluginName)
 
     if (success) {
+      // 更新包管理器中的状态
+      packageManager.setPluginEnabled(pluginName, false)
+      
       // 从已启用列表移除
       await this.saveEnabledPlugins()
 

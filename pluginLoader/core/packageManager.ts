@@ -55,7 +55,11 @@ export class PluginPackageManager {
         // 扫描已安装的插件
         await this.scanInstalledPlugins()
 
+        // 恢复插件的启用状态
+        await this.restorePluginStates()
+
         console.log(`[PackageManager] Initialized, plugins dir: ${this.pluginsDir}`)
+        console.log(`[PackageManager] Found ${this.installedPlugins.size} plugins`)
     }
 
     /**
@@ -66,6 +70,29 @@ export class PluginPackageManager {
             await this.scanPluginDirectory(this.pluginsDir)
         } catch (error) {
             console.error('[PackageManager] Failed to scan plugins:', error)
+        }
+    }
+
+
+
+    /**
+     * 恢复插件的启用状态
+     */
+    private async restorePluginStates(): Promise<void> {
+        try {
+            for (const [pluginId, plugin] of this.installedPlugins) {
+                try {
+                    // 从持久化存储中获取插件的启用状态
+                    const enabled = await invoke<boolean>('get_plugin_enabled', { pluginName: pluginId })
+                    plugin.enabled = enabled
+                    console.log(`[PackageManager] Restored state for ${pluginId}: enabled=${enabled}`)
+                } catch (error) {
+                    // 如果获取失败，保持默认状态（false）
+                    console.log(`[PackageManager] No saved state for ${pluginId}, using default: enabled=false`)
+                }
+            }
+        } catch (error) {
+            console.error('[PackageManager] Failed to restore plugin states:', error)
         }
     }
 
@@ -102,8 +129,50 @@ export class PluginPackageManager {
                             console.error(`[PackageManager] Failed to load manifest for ${entry.name}:`, error)
                         }
                     } else {
-                        // 如果没有 manifest.json，继续递归扫描子目录
-                        await this.scanPluginDirectory(pluginPath, depth + 1)
+                        // 如果没有 manifest.json，尝试从 package.json 生成
+                        const packageJsonPath = await join(pluginPath, 'package.json')
+                        if (await exists(packageJsonPath)) {
+                            try {
+                                const packageContent = await readTextFile(packageJsonPath)
+                                const packageJson = JSON.parse(packageContent)
+
+                                // 从 package.json 生成 manifest
+                                const manifest: PluginManifest = {
+                                    id: entry.name, // 使用目录名作为ID
+                                    name: packageJson.description || entry.name,
+                                    version: packageJson.version || '1.0.0',
+                                    description: packageJson.description || '',
+                                    author: packageJson.author || '',
+                                    entry: packageJson.main || 'index.ts',
+                                    permissions: packageJson.permissions || [],
+                                    dependencies: packageJson.peerDependencies || {},
+                                    config: packageJson.config || {}
+                                }
+
+                                // 如果有后端配置
+                                if (packageJson.backend) {
+                                    manifest.backend = {
+                                        enabled: packageJson.backend.enabled || false,
+                                        entry: packageJson.backend.entry || '',
+                                        commands: packageJson.backend.commands || []
+                                    }
+                                }
+
+                                this.installedPlugins.set(manifest.id, {
+                                    manifest,
+                                    path: pluginPath,
+                                    enabled: false,
+                                    loaded: false
+                                })
+
+                                console.log(`[PackageManager] Found plugin from package.json: ${manifest.id}`)
+                            } catch (error) {
+                                console.error(`[PackageManager] Failed to load package.json for ${entry.name}:`, error)
+                            }
+                        } else {
+                            // 如果都没有，继续递归扫描子目录
+                            await this.scanPluginDirectory(pluginPath, depth + 1)
+                        }
                     }
                 }
             }
@@ -198,7 +267,7 @@ export class PluginPackageManager {
 
             if (!fileExists) {
                 console.log(`[PackageManager] Backend file not found at expected path, searching for alternatives...`)
-                
+
                 // 尝试多个可能的路径
                 const possiblePaths = [
                     // 简化路径（去掉 target/release）
@@ -209,7 +278,7 @@ export class PluginPackageManager {
                     await join(plugin.path, 'backend', `${pluginId}.dll`),
                     await join(plugin.path, `${pluginId}.dll`)
                 ]
-                
+
                 for (const possiblePath of possiblePaths) {
                     console.log(`[PackageManager] Trying path: ${possiblePath}`)
                     if (await exists(possiblePath)) {
@@ -219,7 +288,7 @@ export class PluginPackageManager {
                         break
                     }
                 }
-                
+
                 if (!fileExists) {
                     throw new Error(`Backend file not found. Tried paths: ${[backendPath, ...possiblePaths].join(', ')}`)
                 }
@@ -277,6 +346,21 @@ export class PluginPackageManager {
      */
     getPlugin(pluginId: string): InstalledPlugin | undefined {
         return this.installedPlugins.get(pluginId)
+    }
+
+    /**
+     * 重新扫描插件（公共方法）
+     */
+    async rescanPlugins(): Promise<void> {
+        console.log('[PackageManager] Rescanning plugins...')
+
+        // 清空当前插件列表
+        this.installedPlugins.clear()
+
+        // 重新扫描
+        await this.scanInstalledPlugins()
+
+        console.log(`[PackageManager] Rescan complete, found ${this.installedPlugins.size} plugins`)
     }
 
     /**

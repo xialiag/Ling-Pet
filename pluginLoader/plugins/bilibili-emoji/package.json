@@ -1,11 +1,18 @@
 {
   "name": "bilibili-emoji",
-  "version": "2.0.0",
-  "description": "B站表情包管理、下载和发送插件",
+  "version": "3.0.0",
+  "description": "B站表情包管理、下载和发送（支持DLC，智能提取）",
   "main": "index.ts",
   "type": "module",
-  "keywords": ["emoji", "bilibili", "sticker", "download"],
-  "author": "",
+  "keywords": [
+    "emoji",
+    "bilibili",
+    "sticker",
+    "download",
+    "dlc",
+    "chat"
+  ],
+  "author": "Plugin System",
   "license": "MIT",
   "scripts": {
     "scan": "node cli.js scan",
@@ -15,14 +22,19 @@
   "bin": {
     "bilibili-emoji": "./cli.js"
   },
-  "backend": {
-    "enabled": true,
-    "entry": "backend/plugin.dll"
+  "capabilities": {
+    "hooks": true,
+    "components": true,
+    "backend": true,
+    "tools": true,
+    "settings": true,
+    "rpc": true,
+    "events": true,
+    "dom": true
   },
-  "pluginConfig": {
-    "enableAutoScan": true,
-    "maxCacheSize": 10000,
-    "supportedFormats": [".png", ".jpg", ".jpeg", ".gif", ".webp"]
+  "backend": {
+    "type": "rust",
+    "entry": "backend/src/lib.rs"
   },
   "permissions": [
     "storage:read",
@@ -30,9 +42,36 @@
     "network:request",
     "command:execute",
     "hook:component",
-    "hook:store"
+    "hook:store",
+    "dom:inject",
+    "tauri:invoke",
+    "fs:read",
+    "fs:write",
+    "fs:create",
+    "fs:delete"
   ],
+  "dependencies": {
+    "glob": "^10.0.0"
+  },
   "peerDependencies": {
-    "@ling-pet/plugin-llm-service": "^1.0.0"
+    "vue": "^3.0.0"
+  },
+  "pluginMetadata": {
+    "category": "entertainment",
+    "tags": [
+      "emoji",
+      "bilibili",
+      "chat",
+      "sticker"
+    ],
+    "minAppVersion": "1.0.0",
+    "supportedPlatforms": [
+      "windows",
+      "macos",
+      "linux"
+    ],
+    "configurable": true,
+    "hasBackend": true,
+    "hasUI": true
   }
 }

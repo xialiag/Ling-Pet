@@ -190,10 +190,12 @@ export const onBeforeUpdate = __vue.onBeforeUpdate;
     const assetsToCopy = [
       { src: 'README.md', required: false },
       { src: 'LICENSE', required: false },
+      { src: 'manifest.json', required: false },
       { src: 'assets', required: false, isDir: true },
       { src: 'components', required: false, isDir: true },
       { src: 'styles', required: false, isDir: true },
-      { src: 'locales', required: false, isDir: true }
+      { src: 'locales', required: false, isDir: true },
+      { src: 'pages', required: false, isDir: true }
     ];
 
     for (const asset of assetsToCopy) {
